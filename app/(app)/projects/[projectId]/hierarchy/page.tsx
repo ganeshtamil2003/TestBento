@@ -1,0 +1,216 @@
+'use client'
+
+import { useState } from 'react'
+import { useParams } from 'next/navigation'
+import Link from 'next/link'
+import { useAppStore } from '@/store/appStore'
+import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { can } from '@/lib/permissions'
+import type { Epic, Feature, UserStory } from '@/types'
+
+export default function HierarchyPage() {
+  const { projectId } = useParams<{ projectId: string }>()
+  const store = useAppStore()
+  const project = store.projects.find(p => p.id === projectId)
+  const epics = store.epics.filter(e => e.project_id === projectId)
+  const currentUser = store.currentUser
+
+  const supabase = createClient()
+
+  const [expandedEpics, setExpandedEpics] = useState<Set<string>>(new Set([epics[0]?.id]))
+  const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set())
+  const [modal, setModal] = useState<{ type: 'epic' | 'feature' | 'story'; parentId?: string } | null>(null)
+  const [form, setForm] = useState({ title: '', description: '', acceptance_criteria: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  function toggleEpic(id: string) {
+    setExpandedEpics(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+  function toggleFeature(id: string) {
+    setExpandedFeatures(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.title.trim() || !modal || isSubmitting) return
+    setIsSubmitting(true)
+    
+    try {
+      if (modal.type === 'epic') {
+        const { data, error } = await supabase.from('epics').insert({
+          project_id: projectId, title: form.title, description: form.description
+        }).select().single()
+        if (!error && data) store.addEpic({ ...data, _counts: { features: 0 } } as Epic)
+      } else if (modal.type === 'feature') {
+        const { data, error } = await supabase.from('features').insert({
+          epic_id: modal.parentId!, title: form.title, description: form.description
+        }).select().single()
+        if (!error && data) store.addFeature({ ...data, _counts: { user_stories: 0 } } as Feature)
+      } else {
+        const { data, error } = await supabase.from('user_stories').insert({
+          feature_id: modal.parentId!, title: form.title, description: form.description, acceptance_criteria: form.acceptance_criteria
+        }).select().single()
+        if (!error && data) store.addUserStory({ ...data, _counts: { test_cases: 0 } } as UserStory)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setForm({ title: '', description: '', acceptance_criteria: '' })
+      setModal(null)
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleDelete(type: 'epics'|'features'|'user_stories', id: string) {
+    const { error } = await supabase.from(type).delete().eq('id', id)
+    if (!error) {
+      if (type === 'epics') store.deleteEpic(id)
+      if (type === 'features') store.deleteFeature(id)
+      if (type === 'user_stories') store.deleteUserStory(id)
+    }
+  }
+
+  if (!project) return <div className="text-muted-foreground p-8">Project not found.</div>
+
+  const canCreate = can(currentUser?.global_role, 'createHierarchy')
+  const canDelete = can(currentUser?.global_role, 'deleteHierarchy')
+
+  return (
+    <div className="space-y-4">
+      <div className="page-header">
+        <div>
+          <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+            <Link href="/projects" className="hover:text-foreground">Projects</Link>
+            <ChevronRight className="w-3.5 h-3.5" />
+            <span className="text-foreground font-medium">{project.name}</span>
+          </div>
+          <h1 className="page-title">Hierarchy</h1>
+        </div>
+        {canCreate && (
+          <button className="btn-primary" onClick={() => setModal({ type: 'epic' })}>
+            <Plus className="w-4 h-4 mr-2" /> Add Epic
+          </button>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="card-body space-y-2">
+          {epics.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Layers className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p>No epics yet. Add your first epic to get started.</p>
+            </div>
+          )}
+          {epics.map(epic => {
+            const features = store.features.filter(f => f.epic_id === epic.id)
+            const isEpicOpen = expandedEpics.has(epic.id)
+            return (
+              <div key={epic.id} className="border rounded-lg overflow-hidden">
+                {/* Epic Row */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-accent/40 cursor-pointer hover:bg-accent/60 transition-colors" onClick={() => toggleEpic(epic.id)}>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isEpicOpen ? '' : '-rotate-90'}`} />
+                  <FolderOpen className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-foreground flex-1">{epic.title}</span>
+                  <span className="badge bg-primary/10 text-primary text-xs">{features.length} features</span>
+                  
+                  {canCreate && (
+                    <button className="btn-ghost btn-sm btn-icon p-1" onClick={e => { e.stopPropagation(); setModal({ type: 'feature', parentId: epic.id }); setExpandedEpics(p => new Set([...p, epic.id])) }}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={e => { e.stopPropagation(); handleDelete('epics', epic.id) }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Features */}
+                {isEpicOpen && features.map(feature => {
+                  const stories = store.userStories.filter(s => s.feature_id === feature.id)
+                  const isFeatOpen = expandedFeatures.has(feature.id)
+                  return (
+                    <div key={feature.id} className="border-t">
+                      <div className="flex items-center gap-3 pl-8 pr-4 py-2.5 bg-background cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => toggleFeature(feature.id)}>
+                        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isFeatOpen ? '' : '-rotate-90'}`} />
+                        <Layers className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="font-medium text-foreground flex-1 text-sm">{feature.title}</span>
+                        <span className="badge bg-purple-100 text-purple-700 text-xs">{stories.length} stories</span>
+                        
+                        {canCreate && (
+                          <button className="btn-ghost btn-sm btn-icon p-1" onClick={e => { e.stopPropagation(); setModal({ type: 'story', parentId: feature.id }); setExpandedFeatures(p => new Set([...p, feature.id])) }}>
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={e => { e.stopPropagation(); handleDelete('features', feature.id) }}>
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Stories */}
+                      {isFeatOpen && stories.map(story => {
+                        const tcCount = store.testCases.filter(tc => tc.story_id === story.id).length
+                        return (
+                          <div key={story.id} className="flex items-center gap-3 pl-14 pr-4 py-2 border-t bg-muted/20 hover:bg-muted/40 transition-colors">
+                            <BookOpen className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-foreground text-sm">{story.title}</div>
+                              {story.description && <div className="text-xs text-muted-foreground truncate">{story.description}</div>}
+                            </div>
+                            <span className="badge bg-green-100 text-green-700 text-xs flex items-center gap-1">
+                              <TestTube2 className="w-2.5 h-2.5" />{tcCount} TCs
+                            </span>
+                            <Link href={`/projects/${projectId}/test-cases?story=${story.id}`} className="btn-secondary btn-sm text-xs">View TCs</Link>
+                            {canDelete && (
+                              <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={() => handleDelete('user_stories', story.id)}>
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {modal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={() => !isSubmitting && setModal(null)}>
+          <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-4">
+              Add {modal.type === 'epic' ? 'Epic' : modal.type === 'feature' ? 'Feature' : 'User Story'}
+            </h2>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div>
+                <label className="form-label">Title *</label>
+                <input className="form-input" placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="form-label">Description</label>
+                <textarea className="form-textarea" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+              {modal.type === 'story' && (
+                <div>
+                  <label className="form-label">Acceptance Criteria</label>
+                  <textarea className="form-textarea" rows={2} placeholder="Given... When... Then..." value={form.acceptance_criteria} onChange={e => setForm(f => ({ ...f, acceptance_criteria: e.target.value }))} />
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" className="btn-secondary flex-1" onClick={() => setModal(null)} disabled={isSubmitting}>Cancel</button>
+                <button type="submit" className="btn-primary flex-1" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
