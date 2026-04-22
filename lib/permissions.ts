@@ -5,8 +5,8 @@ export const PERMISSIONS = {
   editProject:      ['ADMIN', 'QA_LEAD'],
   deleteProject:    ['ADMIN'],
   
-  createHierarchy:  ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'], // epics, features, stories
-  editHierarchy:    ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'],
+  createHierarchy:  ['ADMIN', 'QA_LEAD'], // epics, features, stories
+  editHierarchy:    ['ADMIN', 'QA_LEAD'],
   deleteHierarchy:  ['ADMIN', 'QA_LEAD'],
   
   createTestCase:   ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'],
