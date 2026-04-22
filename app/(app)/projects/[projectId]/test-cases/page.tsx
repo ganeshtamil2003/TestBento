@@ -4,11 +4,12 @@ import { useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { Plus, Download, Upload, Search, ChevronRight, Trash2, Edit2, Eye, FileSpreadsheet } from 'lucide-react'
+import { Plus, Download, Upload, Search, ChevronRight, Trash2, Edit2, Eye, FileSpreadsheet, Sparkles } from 'lucide-react'
 import { STATUS_LABELS, STATUS_COLORS, cn } from '@/lib/utils'
 import { exportTestCasesToExcel, getImportTemplate, parseTestCasesExcel } from '@/lib/excel'
 import type { TestCase, TestStep } from '@/types'
 import TestCaseModal from '@/components/test-cases/TestCaseModal'
+import GenerateTestCasesModal from '@/components/test-cases/GenerateTestCasesModal'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 
@@ -32,6 +33,7 @@ export default function TestCasesPage() {
   const [priorityFilter, setPriorityFilter] = useState('')
   const [selectedStory, setSelectedStory] = useState(storyFilter || '')
   const [showModal, setShowModal] = useState(false)
+  const [showGenModal, setShowGenModal] = useState(false)
   const [editTC, setEditTC] = useState<TestCase | null>(null)
   const [viewTC, setViewTC] = useState<TestCase | null>(null)
   const [importing, setImporting] = useState(false)
@@ -121,9 +123,14 @@ export default function TestCasesPage() {
             <Download className="w-4 h-4" /> Export
           </button>
           {can(currentUser?.global_role, 'createTestCase') && (
-            <button id="add-tc-btn" className="btn-primary" onClick={() => { setEditTC(null); setShowModal(true) }}>
-              <Plus className="w-4 h-4" /> Add Test Case
-            </button>
+            <>
+              <button id="gen-tc-btn" className="btn-secondary" onClick={() => setShowGenModal(true)}>
+                <Sparkles className="w-4 h-4 text-primary" /> Generate
+              </button>
+              <button id="add-tc-btn" className="btn-primary" onClick={() => { setEditTC(null); setShowModal(true) }}>
+                <Plus className="w-4 h-4" /> Add Test Case
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -224,6 +231,15 @@ export default function TestCasesPage() {
           stories={stories}
           initialStoryId={selectedStory}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* AI Generate Modal */}
+      {showGenModal && (
+        <GenerateTestCasesModal
+          stories={stories}
+          initialStoryId={selectedStory}
+          onClose={() => setShowGenModal(false)}
         />
       )}
 
