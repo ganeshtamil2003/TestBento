@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2 } from 'lucide-react'
+import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import type { Epic, Feature, UserStory } from '@/types'
@@ -21,6 +21,7 @@ export default function HierarchyPage() {
   const [expandedEpics, setExpandedEpics] = useState<Set<string>>(new Set([epics[0]?.id]))
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set())
   const [modal, setModal] = useState<{ type: 'epic' | 'feature' | 'story'; parentId?: string } | null>(null)
+  const [viewAC, setViewAC] = useState<UserStory | null>(null)
   const [form, setForm] = useState({ title: '', description: '', acceptance_criteria: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -111,7 +112,10 @@ export default function HierarchyPage() {
                 <div className="flex items-center gap-3 px-4 py-3 bg-accent/40 cursor-pointer hover:bg-accent/60 transition-colors" onClick={() => toggleEpic(epic.id)}>
                   <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isEpicOpen ? '' : '-rotate-90'}`} />
                   <FolderOpen className="w-4 h-4 text-primary" />
-                  <span className="font-semibold text-foreground flex-1">{epic.title}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-foreground truncate">{epic.title}</div>
+                    {epic.description && <div className="text-xs text-muted-foreground truncate">{epic.description}</div>}
+                  </div>
                   <span className="badge bg-primary/10 text-primary text-xs">{features.length} features</span>
                   
                   {canCreate && (
@@ -135,7 +139,10 @@ export default function HierarchyPage() {
                       <div className="flex items-center gap-3 pl-8 pr-4 py-2.5 bg-background cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => toggleFeature(feature.id)}>
                         <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isFeatOpen ? '' : '-rotate-90'}`} />
                         <Layers className="w-3.5 h-3.5 text-purple-500" />
-                        <span className="font-medium text-foreground flex-1 text-sm">{feature.title}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-foreground text-sm truncate">{feature.title}</div>
+                          {feature.description && <div className="text-xs text-muted-foreground truncate mt-0.5">{feature.description}</div>}
+                        </div>
                         <span className="badge bg-purple-100 text-purple-700 text-xs">{stories.length} stories</span>
                         
                         {canCreate && (
@@ -158,7 +165,15 @@ export default function HierarchyPage() {
                             <BookOpen className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-foreground text-sm">{story.title}</div>
-                              {story.description && <div className="text-xs text-muted-foreground truncate">{story.description}</div>}
+                              {story.description && <div className="text-xs text-muted-foreground truncate mt-0.5">{story.description}</div>}
+                              {story.acceptance_criteria && (
+                                <button 
+                                  className="btn-ghost btn-sm text-[10px] h-6 px-2 mt-1 bg-accent/40 hover:bg-accent/80 text-muted-foreground border border-border/50 rounded flex items-center gap-1.5 transition-colors" 
+                                  onClick={(e) => { e.stopPropagation(); setViewAC(story); }}
+                                >
+                                  <FileText className="w-3 h-3" /> View Acceptance Criteria
+                                </button>
+                              )}
                             </div>
                             <span className="badge bg-green-100 text-green-700 text-xs flex items-center gap-1">
                               <TestTube2 className="w-2.5 h-2.5" />{tcCount} TCs
@@ -207,6 +222,30 @@ export default function HierarchyPage() {
                 <button type="submit" className="btn-primary flex-1" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {viewAC && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={() => setViewAC(null)}>
+          <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Acceptance Criteria
+            </h2>
+            <div className="text-sm text-foreground mb-4 font-medium">{viewAC.title}</div>
+            <div className="bg-muted/30 border border-border/50 rounded-lg p-4 text-sm max-h-[60vh] overflow-y-auto leading-relaxed text-muted-foreground">
+              {viewAC.acceptance_criteria && (
+                <ul className="list-disc pl-4 space-y-1.5 marker:text-muted-foreground/50">
+                  {viewAC.acceptance_criteria.split('\n').filter(line => line.trim() !== '').map((line, i) => (
+                    <li key={i}>{line.trim().replace(/^- /g, '')}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button className="btn-secondary" onClick={() => setViewAC(null)}>Close</button>
+            </div>
           </div>
         </div>
       )}

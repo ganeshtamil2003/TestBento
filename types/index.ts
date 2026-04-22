@@ -174,3 +174,15 @@ export interface Defect {
   created_at: string
   creator?: Profile
 }
+
+export interface GeneratedTestCase {
+  title: string
+  description?: string
+  preconditions?: string
+  postconditions?: string
+  steps: TestStep[]
+  expected_result?: string
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
+  automation_status: AutomationStatus
+  isSelected: boolean
+}
