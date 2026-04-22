@@ -42,7 +42,7 @@ export default function GenerateTestCasesModal({ stories, initialStoryId, onClos
     setForm(f => ({
       ...f,
       story_id: s_id,
-      acceptanceCriteria: s?.acceptanceCriteria || '',
+      acceptanceCriteria: s?.acceptance_criteria || '',
       // Only swap description if we haven't typed a custom requirement yet or if it was the old description
       requirement: f.requirement ? f.requirement : (s?.description || '')
     }))
