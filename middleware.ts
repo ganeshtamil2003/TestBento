@@ -32,22 +32,24 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
-
-  // Protected routes check
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login')
+  const { pathname } = request.nextUrl
+  const isAuthRoute = pathname.startsWith('/login')
   const isProtectedRoute = 
-    request.nextUrl.pathname.startsWith('/dashboard') || 
-    request.nextUrl.pathname.startsWith('/projects') || 
-    request.nextUrl.pathname.startsWith('/admin')
+    pathname.startsWith('/dashboard') || 
+    pathname.startsWith('/projects') || 
+    pathname.startsWith('/admin')
 
-  // If trying to access protected route without session -> redirect to login
-  if (isProtectedRoute && !session) {
+  if (!isAuthRoute && !isProtectedRoute) {
+    return response
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (isProtectedRoute && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // If trying to access login page WITH session -> redirect to dashboard
-  if (isAuthRoute && session) {
+  if (isAuthRoute && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
