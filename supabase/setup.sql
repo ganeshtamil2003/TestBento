@@ -156,3 +156,20 @@ CREATE POLICY "Full access to authenticated users" ON test_cases FOR ALL USING (
 CREATE POLICY "Full access to authenticated users" ON review_cycles FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Full access to authenticated users" ON execution_cycles FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Full access to authenticated users" ON execution_items FOR ALL USING (auth.role() = 'authenticated');
+
+-- Audit Logs Table
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id UUID NOT NULL,
+  entity_title TEXT,
+  details JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Audit logs are viewable by authenticated users" ON audit_logs FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Audit logs can be inserted by authenticated users" ON audit_logs FOR INSERT WITH CHECK (auth.role() = 'authenticated');
