@@ -147,11 +147,13 @@ function ProjectCard({ project }: { project: Project }) {
           <Link href={`/projects/${project.id}/hierarchy`} className="btn-secondary text-center text-xs py-2">Hierarchy</Link>
           <Link href={`/projects/${project.id}/test-cases`} className="btn-primary text-center text-xs py-2">Test Cases</Link>
         </div>
-        <div className="grid grid-cols-4 gap-1.5 mt-2">
-          <Link href={`/projects/${project.id}/reviews`} className="btn-ghost text-center text-xs py-1.5 text-muted-foreground">Reviews</Link>
-          <Link href={`/projects/${project.id}/execution`} className="btn-ghost text-center text-xs py-1.5 text-muted-foreground">Execution</Link>
-          <Link href={`/projects/${project.id}/rtm`} className="btn-ghost text-center text-xs py-1.5 text-muted-foreground">RTM</Link>
-          <Link href={`/projects/${project.id}/reports`} className="btn-ghost text-center text-xs py-1.5 text-muted-foreground">Reports</Link>
+        <div className="grid grid-cols-3 gap-1.5 mt-2">
+          <Link href={`/projects/${project.id}/reviews`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Reviews</Link>
+          <Link href={`/projects/${project.id}/execution`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Execution</Link>
+          <Link href={`/projects/${project.id}/defects`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Defects</Link>
+          <Link href={`/projects/${project.id}/rtm`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">RTM</Link>
+          <Link href={`/projects/${project.id}/reports`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Reports</Link>
+          <Link href={`/projects/${project.id}/audit-logs`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Logs</Link>
         </div>
       </div>
     </div>

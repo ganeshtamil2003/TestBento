@@ -186,3 +186,16 @@ export interface GeneratedTestCase {
   automation_status: AutomationStatus
   isSelected: boolean
 }
+
+export interface AuditLog {
+  id: string
+  project_id: string
+  user_id: string
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | string
+  entity_type: 'TEST_CASE' | 'EPIC' | 'FEATURE' | 'USER_STORY' | 'EXECUTION_CYCLE' | string
+  entity_id: string
+  entity_title?: string
+  details?: Record<string, any>
+  created_at: string
+  user?: Profile
+}

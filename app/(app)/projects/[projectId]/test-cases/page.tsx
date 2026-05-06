@@ -12,6 +12,7 @@ import TestCaseModal from '@/components/test-cases/TestCaseModal'
 import GenerateTestCasesModal from '@/components/test-cases/GenerateTestCasesModal'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
+import { logAudit } from '@/lib/audit'
 
 export default function TestCasesPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -75,6 +76,17 @@ export default function TestCasesPage() {
       
       if (!error && data) {
         store.addTestCases(data as TestCase[])
+        data.forEach((tc: any) => {
+          logAudit(supabase, {
+            projectId,
+            userId: currentUser.id,
+            action: 'CREATE',
+            entityType: 'TEST_CASE',
+            entityId: tc.id,
+            entityTitle: tc.title,
+            details: { source: 'Excel Import' }
+          })
+        })
         alert(`Successfully imported ${data.length} test case(s).`)
       } else {
         alert('Failed to insert test cases into database.')
@@ -88,8 +100,21 @@ export default function TestCasesPage() {
   }
 
   async function handleDelete(id: string) {
+    const tcToDelete = store.testCases.find(tc => tc.id === id)
     const { error } = await supabase.from('test_cases').delete().eq('id', id)
-    if (!error) store.deleteTestCase(id)
+    if (!error) {
+      store.deleteTestCase(id)
+      if (tcToDelete) {
+        logAudit(supabase, {
+          projectId,
+          userId: currentUser.id,
+          action: 'DELETE',
+          entityType: 'TEST_CASE',
+          entityId: tcToDelete.id,
+          entityTitle: tcToDelete.title,
+        })
+      }
+    }
   }
 
   if (!project) return <div className="text-muted-foreground p-8">Project not found.</div>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { logAudit } from '@/lib/audit'
 import type { TestCase, TestStep, UserStory } from '@/types'
 
 interface Props {
@@ -63,6 +64,14 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
         
         if (!error && data) {
           store.updateTestCase(editTC.id, data as TestCase)
+          logAudit(supabase, {
+            projectId,
+            userId: store.currentUser.id,
+            action: 'UPDATE',
+            entityType: 'TEST_CASE',
+            entityId: data.id,
+            entityTitle: data.title,
+          })
         }
       } else {
         const { error, data } = await supabase.from('test_cases').insert({
@@ -74,6 +83,14 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
         
         if (!error && data) {
           store.addTestCase(data as TestCase)
+          logAudit(supabase, {
+            projectId,
+            userId: store.currentUser.id,
+            action: 'CREATE',
+            entityType: 'TEST_CASE',
+            entityId: data.id,
+            entityTitle: data.title,
+          })
         }
       }
       onClose()
