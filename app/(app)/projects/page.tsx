@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { Plus, Search, FolderKanban } from 'lucide-react'
+import { Plus, Search, FolderKanban, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import type { Project } from '@/types'
+import RenameProjectModal from '@/components/projects/RenameProjectModal'
+import DeleteProjectModal from '@/components/projects/DeleteProjectModal'
 
 export default function ProjectsPage() {
   const { projects, addProject, currentUser } = useAppStore()
@@ -116,6 +118,12 @@ export default function ProjectsPage() {
 
 function ProjectCard({ project }: { project: Project }) {
   const store = useAppStore()
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [showRenameModal, setShowRenameModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const isAdmin = store.currentUser?.global_role === 'ADMIN'
   const gradients = ['gradient-primary', 'gradient-info', 'gradient-success', 'gradient-warning']
   const g = gradients[project.name.charCodeAt(0) % gradients.length]
   
@@ -124,12 +132,51 @@ function ProjectCard({ project }: { project: Project }) {
   const storyIds = new Set(store.userStories.filter(s => featureIds.has(s.feature_id)).map(s => s.id))
   const testCaseCount = store.testCases.filter(tc => storyIds.has(tc.story_id)).length
 
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [dropdownRef])
+
   return (
-    <div className="card hover:shadow-lg transition-shadow duration-200">
+    <div className="card hover:shadow-lg transition-shadow duration-200 relative">
       <div className={`h-2 ${g} rounded-t-xl`} />
       <div className="p-5">
-        <div className="flex items-start justify-between mb-3">
-          <h3 className="font-semibold text-foreground text-base">{project.name}</h3>
+        <div className="flex items-start justify-between mb-3 relative">
+          <h3 className="font-semibold text-foreground text-base pr-6">{project.name}</h3>
+          
+          {isAdmin && (
+            <div className="absolute right-0 top-0" ref={dropdownRef}>
+              <button 
+                className="btn-ghost btn-icon p-1 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowDropdown(!showDropdown)}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+              
+              {showDropdown && (
+                <div className="absolute right-0 mt-1 w-40 bg-card rounded-lg shadow-xl border border-border overflow-hidden z-20 animate-fade-in">
+                  <button 
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted flex items-center gap-2"
+                    onClick={() => { setShowRenameModal(true); setShowDropdown(false); }}
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" /> Rename
+                  </button>
+                  <button 
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-destructive/10 text-destructive flex items-center gap-2"
+                    onClick={() => { setShowDeleteModal(true); setShowDropdown(false); }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <p className="text-muted-foreground text-sm mb-4 leading-relaxed">{project.description || 'No description'}</p>
         <div className="grid grid-cols-2 gap-2 mb-4">
@@ -147,15 +194,19 @@ function ProjectCard({ project }: { project: Project }) {
           <Link href={`/projects/${project.id}/hierarchy`} className="btn-secondary text-center text-xs py-2">Hierarchy</Link>
           <Link href={`/projects/${project.id}/test-cases`} className="btn-primary text-center text-xs py-2">Test Cases</Link>
         </div>
-        <div className="grid grid-cols-3 gap-1.5 mt-2">
-          <Link href={`/projects/${project.id}/reviews`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Reviews</Link>
-          <Link href={`/projects/${project.id}/execution`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Execution</Link>
-          <Link href={`/projects/${project.id}/defects`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Defects</Link>
-          <Link href={`/projects/${project.id}/rtm`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">RTM</Link>
-          <Link href={`/projects/${project.id}/reports`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Reports</Link>
-          <Link href={`/projects/${project.id}/audit-logs`} className="btn-ghost text-center text-[11px] py-1.5 text-muted-foreground">Logs</Link>
+        <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+          <Link href={`/projects/${project.id}/reviews`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Reviews</Link>
+          <Link href={`/projects/${project.id}/execution`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Execution</Link>
+          <Link href={`/projects/${project.id}/defects`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Defects</Link>
+          <Link href={`/projects/${project.id}/rtm`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">RTM</Link>
+          <Link href={`/projects/${project.id}/reports`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Reports</Link>
+          <Link href={`/projects/${project.id}/audit-logs`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Logs</Link>
+          <Link href={`/projects/${project.id}/members`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Members</Link>
         </div>
       </div>
+
+      {showRenameModal && <RenameProjectModal project={project} onClose={() => setShowRenameModal(false)} />}
+      {showDeleteModal && <DeleteProjectModal project={project} onClose={() => setShowDeleteModal(false)} />}
     </div>
   )
 }

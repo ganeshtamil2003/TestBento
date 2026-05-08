@@ -172,13 +172,19 @@ export default function GenerateTestCasesModal({ stories, initialStoryId, onClos
                 <label className="form-label">Number of Test Cases to Generate</label>
                 <div className="flex items-center gap-4">
                   <input 
-                    type="range" 
-                    min="1" max="10" 
-                    className="w-full max-w-xs accent-primary" 
-                    value={form.count} 
-                    onChange={e => setForm(f => ({ ...f, count: parseInt(e.target.value) }))} 
+                    type="number" 
+                    min="1" max="20" 
+                    className="form-input w-24" 
+                    value={form.count || ''} 
+                    onChange={e => {
+                      let val = parseInt(e.target.value);
+                      if (isNaN(val)) val = 1;
+                      if (val > 20) val = 20;
+                      if (val < 1) val = 1;
+                      setForm(f => ({ ...f, count: val }));
+                    }} 
                   />
-                  <span className="font-medium inline-block w-8 text-center">{form.count}</span>
+                  <span className="text-xs text-muted-foreground">Maximum: 20 test cases</span>
                 </div>
               </div>
             </form>

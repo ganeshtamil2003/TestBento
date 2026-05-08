@@ -36,6 +36,7 @@ export default function Sidebar() {
     { href: `${base}/defects`,    segment: 'defects',    icon: Bug,          label: 'Defects'    },
     { href: `${base}/rtm`,        segment: 'rtm',        icon: GitMerge,     label: 'RTM'        },
     { href: `${base}/reports`,    segment: 'reports',    icon: BarChart3,    label: 'Reports'    },
+    { href: `${base}/members`,    segment: 'members',    icon: Users,        label: 'Members'    },
     { href: `${base}/audit-logs`, segment: 'audit-logs', icon: Activity,     label: 'Audit Logs' },
   ]
 
@@ -115,7 +116,7 @@ export default function Sidebar() {
 
       {/* User Profile & Logout */}
       <div className="px-3 py-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent/50 w-full mb-2">
+        <Link href="/profile" className="flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent/50 border border-sidebar-border hover:bg-sidebar-accent transition-colors">
           <div className="w-8 h-8 rounded-full gradient-info flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold">{getInitials(currentUser?.full_name)}</span>
           </div>
@@ -123,7 +124,7 @@ export default function Sidebar() {
             <div className="text-white text-sm font-medium truncate">{currentUser?.full_name || 'Loading...'}</div>
             <div className="text-sidebar-foreground/50 text-xs truncate">{currentUser?.global_role?.replace('_', ' ') || ''}</div>
           </div>
-        </div>
+        </Link>
         <form action={logout}>
           <button type="submit" className="w-full flex items-center justify-center gap-2 py-2 text-sm text-sidebar-foreground/60 hover:text-red-400 hover:bg-sidebar-accent rounded-lg transition-colors">
             <LogOut className="w-4 h-4" />

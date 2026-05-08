@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 // Initialize the Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -16,9 +19,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'GEMINI_API_KEY is not configured' }, { status: 500 });
     }
 
-    // Use Gemini 1.5 Flash for fast generation
+    // Use Gemini 2.5 Flash for fast generation
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
       }
@@ -56,7 +59,22 @@ Your output MUST be a strict JSON array of test cases. Each test case MUST follo
 Ensure that the output is exactly a valid JSON array and adheres to the types strictly. Priority should be one of "HIGH", "MEDIUM", "LOW". Automation status should be one of "MANUAL", "AUTOMATED", "SEMI_AUTOMATED".
 `;
 
-    const result = await model.generateContent(prompt);
+
+    let result;
+    let retries = 2;
+    while (retries >= 0) {
+      try {
+        result = await model.generateContent(prompt);
+        break; // Success
+      } catch (e: any) {
+        if (retries === 0) throw e;
+        console.log(`Fetch failed, retrying... (${retries} left)`);
+        await new Promise(r => setTimeout(r, 1000));
+        retries--;
+      }
+    }
+    
+    if (!result) throw new Error("Failed to get response from AI");
     const text = result.response.text();
     
     let parsedData = [];

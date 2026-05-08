@@ -173,3 +173,55 @@ CREATE TABLE audit_logs (
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Audit logs are viewable by authenticated users" ON audit_logs FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Audit logs can be inserted by authenticated users" ON audit_logs FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- Defect Management Table
+CREATE TYPE defect_status AS ENUM ('OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
+
+CREATE TABLE defects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  execution_item_id UUID REFERENCES execution_items(id) ON DELETE SET NULL,
+  test_case_id UUID REFERENCES test_cases(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'MEDIUM',
+  status defect_status NOT NULL DEFAULT 'OPEN',
+  description TEXT,
+  jira_url TEXT,
+  assigned_to UUID REFERENCES profiles(id),
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE defects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Defects are viewable by authenticated users" ON defects FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Defects can be inserted/updated by authenticated users" ON defects FOR ALL USING (auth.role() = 'authenticated');
+
+-- Project Members Table
+CREATE TABLE project_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  role global_role NOT NULL DEFAULT 'QA_ENGINEER',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(project_id, user_id)
+);
+
+ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Project members viewable by authenticated users" ON project_members FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Project members manageable by authenticated users" ON project_members FOR ALL USING (auth.role() = 'authenticated');
+
+-- Notifications Table
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  link TEXT,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Notifications are viewable by authenticated users" ON notifications FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Notifications can be inserted/updated by authenticated users" ON notifications FOR ALL USING (auth.role() = 'authenticated');

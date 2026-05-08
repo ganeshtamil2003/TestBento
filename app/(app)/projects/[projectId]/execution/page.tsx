@@ -8,6 +8,7 @@ import { ChevronRight, Plus, CheckCircle, XCircle, AlertTriangle, MinusCircle, B
 import { STATUS_COLORS, STATUS_LABELS, cn, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
+import { logAudit } from '@/lib/audit'
 import type { ExecutionCycle, ExecutionItem, Defect } from '@/types'
 
 export default function ExecutionPage() {
@@ -37,8 +38,9 @@ export default function ExecutionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const supabase = createClient()
 
-  // all active profiles are valid assignees in this project
-  const projectMembers = store.profiles.filter(p => p.status === 'ACTIVE')
+  // Only users added to the project are valid assignees
+  const projectMemberIds = new Set(store.projectMembers.filter(m => m.project_id === projectId).map(m => m.user_id))
+  const projectMembers = store.profiles.filter(p => p.status === 'ACTIVE' && projectMemberIds.has(p.id))
 
 
   const activeItems = store.executionItems.filter(ei => ei.cycle_id === activeCycle)
@@ -126,21 +128,32 @@ export default function ExecutionPage() {
     if (isSubmitting) return
     setIsSubmitting(true)
     try {
-      const d = {
-        id: `d${Date.now()}`,
-        execution_item_id: itemId,
-        ...defectForm,
-        created_by: store.currentUser.id,
-        created_at: new Date().toISOString(),
-      }
       const item = store.executionItems.find(ei => ei.id === itemId)
       if (!item) return
       
-      const newDefects = [...(item.defects || []), d]
-      const { error } = await supabase.from('execution_items').update({ defects: newDefects }).eq('id', itemId)
+      const newDefect = {
+        project_id: projectId,
+        execution_item_id: itemId,
+        test_case_id: item.test_case_id,
+        title: defectForm.title,
+        severity: defectForm.severity,
+        description: defectForm.description,
+        jira_url: defectForm.jira_url,
+        created_by: store.currentUser.id,
+      }
       
-      if (!error) {
-        store.updateExecutionItem(itemId, { defects: newDefects as Defect[] })
+      const { error, data } = await supabase.from('defects').insert(newDefect).select().single()
+      
+      if (!error && data) {
+        store.addDefect(data as Defect)
+        logAudit(supabase, {
+          projectId,
+          userId: store.currentUser.id,
+          action: 'CREATE',
+          entityType: 'DEFECT',
+          entityId: data.id,
+          entityTitle: data.title
+        })
         setDefectForm({ title: '', severity: 'HIGH', description: '', jira_url: '' })
         setShowDefectModal(null)
       }
@@ -331,20 +344,23 @@ export default function ExecutionPage() {
                           </div>
                         </td>
                         <td>
-                          {(item.defects?.length ?? 0) > 0 ? (
-                            <button 
-                              className="badge bg-red-100 text-red-700 text-xs hover:bg-red-200 transition-colors border-none cursor-pointer"
-                              onClick={() => setViewDefectItems(item.defects || [])}
-                            >
-                              {item.defects!.length} defect{item.defects!.length > 1 ? 's' : ''}
-                            </button>
-                          ) : (
-                            item.status === 'FAIL' && can(store.currentUser?.global_role, 'updateExecution') && (
-                              <button id={`log-defect-${item.id}`} className="btn-ghost btn-sm text-xs text-red-600 flex items-center gap-1" onClick={() => setShowDefectModal(item.id)}>
-                                <Bug className="w-3 h-3" /> Log Defect
+                          {(() => {
+                            const itemDefects = store.defects.filter(d => d.execution_item_id === item.id)
+                            return itemDefects.length > 0 ? (
+                              <button 
+                                className="badge bg-red-100 text-red-700 text-xs hover:bg-red-200 transition-colors border-none cursor-pointer"
+                                onClick={() => setViewDefectItems(itemDefects)}
+                              >
+                                {itemDefects.length} defect{itemDefects.length > 1 ? 's' : ''}
                               </button>
+                            ) : (
+                              item.status === 'FAIL' && can(store.currentUser?.global_role, 'updateExecution') && (
+                                <button id={`log-defect-${item.id}`} className="btn-ghost btn-sm text-xs text-red-600 flex items-center gap-1" onClick={() => setShowDefectModal(item.id)}>
+                                  <Bug className="w-3 h-3" /> Log Defect
+                                </button>
+                              )
                             )
-                          )}
+                          })()}
                         </td>
                       </tr>
                     )

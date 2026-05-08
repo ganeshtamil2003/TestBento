@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import { Bell } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
+import NotificationBell from './NotificationBell'
 
 const ROUTE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -35,10 +36,7 @@ export default function Header() {
       </div>
       <div className="flex items-center gap-3">
 
-        <button className="btn-icon relative">
-          <Bell className="w-4 h-4 text-muted-foreground" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
+        <NotificationBell />
       </div>
     </header>
   )
