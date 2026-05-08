@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Sparkles, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { logAudit } from '@/lib/audit'
 import type { TestCase, TestStep, UserStory } from '@/types'
@@ -20,7 +20,7 @@ const emptyStep = (): TestStep => ({ step_number: 1, action: '', test_data: '', 
 export default function TestCaseModal({ projectId, editTC, stories, initialStoryId, onClose }: Props) {
   const store = useAppStore()
   const [form, setForm] = useState({
-    story_id: editTC?.story_id || initialStoryId || stories[0]?.id || '',
+    story_id: editTC?.story_id || initialStoryId || '',
     title: editTC?.title || '',
     description: editTC?.description || '',
     preconditions: editTC?.preconditions || '',
@@ -35,6 +35,8 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
   )
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [dataStyle, setDataStyle] = useState('Happy Path')
+  const [isGeneratingData, setIsGeneratingData] = useState(false)
   const supabase = createClient()
 
   function addStep() {
@@ -45,6 +47,59 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
   }
   function updateStep(idx: number, field: keyof TestStep, value: string) {
     setSteps(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s))
+  }
+
+  async function generateTestData() {
+    if (!form.title) {
+      alert("Please enter a test case title first.")
+      return
+    }
+    const validSteps = steps.filter(s => s.action.trim())
+    if (validSteps.length === 0) {
+      alert("Please add at least one step with an action first.")
+      return
+    }
+
+    if (!window.confirm("This will overwrite existing test data in the steps using AI. Do you want to proceed?")) {
+      return
+    }
+
+    setIsGeneratingData(true)
+    try {
+      const res = await fetch('/api/generate-test-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          steps: validSteps,
+          dataStyle
+        })
+      })
+
+      if (!res.ok) throw new Error('Failed to generate test data')
+      
+      const { testData } = await res.json()
+      
+      if (Array.isArray(testData) && testData.length === validSteps.length) {
+        setSteps(prev => {
+          let aiIdx = 0;
+          return prev.map(s => {
+            if (s.action.trim()) {
+              const newS = { ...s, test_data: testData[aiIdx] }
+              aiIdx++
+              return newS
+            }
+            return s
+          })
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      alert("Failed to generate test data.")
+    } finally {
+      setIsGeneratingData(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -154,12 +209,40 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
           </div>
 
           {/* Steps */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="form-label mb-0">Test Steps</label>
-              <button type="button" className="btn-secondary btn-sm" onClick={addStep}>
-                <Plus className="w-3.5 h-3.5" /> Add Step
-              </button>
+          <div className="border border-border rounded-xl p-4 bg-muted/20">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <label className="form-label mb-0">Test Steps</label>
+                <p className="text-xs text-muted-foreground mt-1">Define the actions and expected results.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-primary/5 border border-primary/20 rounded px-2 py-1">
+                  <select 
+                    className="text-xs bg-transparent border-none outline-none text-primary font-medium cursor-pointer"
+                    value={dataStyle}
+                    onChange={(e) => setDataStyle(e.target.value)}
+                    disabled={isGeneratingData}
+                  >
+                    <option value="Happy Path">Happy Path</option>
+                    <option value="Edge Cases">Edge Cases</option>
+                    <option value="Security">Security (Malicious)</option>
+                  </select>
+                  <button 
+                    type="button" 
+                    className="btn-ghost btn-sm text-primary hover:bg-primary/10 gap-1 px-2 py-1 rounded" 
+                    onClick={generateTestData}
+                    disabled={isGeneratingData}
+                    title="Auto-fill test data using AI"
+                  >
+                    {isGeneratingData ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    <span>Fill Data</span>
+                  </button>
+                </div>
+                <div className="w-px h-6 bg-border mx-1"></div>
+                <button type="button" className="btn-secondary btn-sm" onClick={addStep}>
+                  <Plus className="w-3.5 h-3.5" /> Add Step
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               {steps.map((step, idx) => (

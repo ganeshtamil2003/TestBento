@@ -50,8 +50,6 @@ export default function AuditLogsPage() {
 
   const filtered = logs.filter(log => {
     const matchSearch = 
-      log.entity_title?.toLowerCase().includes(search.toLowerCase()) || 
-      log.entity_type.toLowerCase().includes(search.toLowerCase()) ||
       log.user?.full_name?.toLowerCase().includes(search.toLowerCase())
     
     const matchAction = !actionFilter || log.action === actionFilter
@@ -92,7 +90,7 @@ export default function AuditLogsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input 
               className="form-input pl-9" 
-              placeholder="Search by title, entity, or user..." 
+              placeholder="Search by user name..." 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
             />
@@ -114,8 +112,8 @@ export default function AuditLogsPage() {
               <tr>
                 <th className="w-12">Action</th>
                 <th>User</th>
-                <th>Entity</th>
-                <th>Details</th>
+                <th>Item Changed</th>
+                <th>Specific Changes</th>
                 <th>Date</th>
               </tr>
             </thead>

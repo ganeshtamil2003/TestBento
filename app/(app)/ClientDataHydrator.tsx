@@ -22,7 +22,10 @@ export default function ClientDataHydrator({ children }: { children: React.React
           { data: testCases },
           { data: reviewCycles },
           { data: executionCycles },
-          { data: executionItems }
+          { data: executionItems },
+          { data: defects },
+          { data: projectMembers },
+          { data: notifications }
         ] = await Promise.all([
           supabase.from('projects').select('*'),
           supabase.from('epics').select('*'),
@@ -31,7 +34,10 @@ export default function ClientDataHydrator({ children }: { children: React.React
           supabase.from('test_cases').select('*'),
           supabase.from('review_cycles').select('*'),
           supabase.from('execution_cycles').select('*'),
-          supabase.from('execution_items').select('*')
+          supabase.from('execution_items').select('*'),
+          supabase.from('defects').select('*'),
+          supabase.from('project_members').select('*, profile:user_id(*)'),
+          supabase.from('notifications').select('*').order('created_at', { ascending: false })
         ])
 
         const profiles = await getActiveProfiles()
@@ -45,6 +51,9 @@ export default function ClientDataHydrator({ children }: { children: React.React
           reviewCycles: reviewCycles || [],
           executionCycles: executionCycles || [],
           executionItems: executionItems || [],
+          defects: defects || [],
+          projectMembers: projectMembers || [],
+          notifications: notifications || [],
           profiles: profiles || []
         })
       } catch (err) {

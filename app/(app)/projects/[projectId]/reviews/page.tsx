@@ -7,7 +7,9 @@ import { useAppStore } from '@/store/appStore'
 import { ChevronRight, UserCheck, MessageSquare, Plus, CheckCircle, XCircle, CheckSquare, Square } from 'lucide-react'
 import { STATUS_COLORS, STATUS_LABELS, cn, formatDateTime } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
-import type { ReviewCycle, ReviewComment } from '@/types'
+import { can } from '@/lib/permissions'
+import { createNotification } from '@/lib/notifications'
+import type { ReviewCycle, ReviewComment, ReviewStatus } from '@/types'
 
 export default function ReviewsPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -65,6 +67,15 @@ export default function ReviewsPage() {
         data.forEach(rc => store.addReviewCycle(rc as ReviewCycle))
         await supabase.from('test_cases').update({ status: 'IN_REVIEW' }).in('id', selectedTCIds)
         selectedTCIds.forEach(tcId => store.updateTestCase(tcId, { status: 'IN_REVIEW' }))
+
+        if (reviewerId !== currentUser.id) {
+          createNotification(supabase, store.addNotification, {
+            userId: reviewerId,
+            title: 'Review Assigned',
+            message: `You have been assigned ${selectedTCIds.length} test cases for review.`,
+            link: `/projects/${projectId}/reviews`
+          })
+        }
       }
     } catch(err) {
       console.error(err)
@@ -122,6 +133,17 @@ export default function ReviewsPage() {
         store.updateReviewCycle(reviewId, { status, resolved_at: now })
         store.updateTestCase(tcId, { status: status === 'APPROVED' ? 'APPROVED' : 'REJECTED' })
         setActiveReview(prev => prev ? { ...prev, status } : prev)
+
+        const rc = store.reviewCycles.find(r => r.id === reviewId)
+        const tc = store.testCases.find(t => t.id === tcId)
+        if (rc && tc && rc.assigned_by !== currentUser.id) {
+          createNotification(supabase, store.addNotification, {
+            userId: rc.assigned_by,
+            title: `Review ${status}`,
+            message: `Test case "${tc.title}" has been ${status.toLowerCase()}.`,
+            link: `/projects/${projectId}/test-cases`
+          })
+        }
       }
     } catch(err) {
       console.error(err)

@@ -40,6 +40,9 @@ export default function TestCasesPage() {
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [selectedTCIds, setSelectedTCIds] = useState<string[]>([])
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+
   const stories = store.userStories.filter(s => storyIds.has(s.id))
 
   const filtered = allTCs.filter(tc => {
@@ -114,6 +117,59 @@ export default function TestCasesPage() {
           entityTitle: tcToDelete.title,
         })
       }
+    }
+  }
+
+  const allSelected = filtered.length > 0 && selectedTCIds.length === filtered.length
+  function toggleAll() {
+    setSelectedTCIds(allSelected ? [] : filtered.map(tc => tc.id))
+  }
+  function toggleTC(id: string) {
+    setSelectedTCIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  async function handleBulkUpdate(field: 'priority' | 'automation_status', value: string) {
+    if (selectedTCIds.length === 0 || isBulkUpdating) return
+    setIsBulkUpdating(true)
+    try {
+      const { error } = await supabase.from('test_cases').update({ [field]: value }).in('id', selectedTCIds)
+      if (!error) {
+        selectedTCIds.forEach(id => store.updateTestCase(id, { [field]: value }))
+        logAudit(supabase, {
+          projectId,
+          userId: currentUser.id,
+          action: 'UPDATE',
+          entityType: 'TEST_CASE',
+          entityId: selectedTCIds[0],
+          entityTitle: `Bulk updated ${selectedTCIds.length} test cases`,
+          details: { field, to: value }
+        })
+      }
+    } finally {
+      setIsBulkUpdating(false)
+      setSelectedTCIds([])
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedTCIds.length === 0 || isBulkUpdating || !window.confirm(`Are you sure you want to delete ${selectedTCIds.length} test cases?`)) return
+    setIsBulkUpdating(true)
+    try {
+      const { error } = await supabase.from('test_cases').delete().in('id', selectedTCIds)
+      if (!error) {
+        selectedTCIds.forEach(id => store.deleteTestCase(id))
+        logAudit(supabase, {
+          projectId,
+          userId: currentUser.id,
+          action: 'DELETE',
+          entityType: 'TEST_CASE',
+          entityId: selectedTCIds[0],
+          entityTitle: `Bulk deleted ${selectedTCIds.length} test cases`,
+        })
+      }
+    } finally {
+      setIsBulkUpdating(false)
+      setSelectedTCIds([])
     }
   }
 
@@ -192,6 +248,9 @@ export default function TestCasesPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th className="w-10 text-center">
+                  <input type="checkbox" className="accent-primary" checked={allSelected} onChange={toggleAll} />
+                </th>
                 <th className="w-8">#</th>
                 <th>Title</th>
                 <th>Story</th>
@@ -204,7 +263,7 @@ export default function TestCasesPage() {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">No test cases found.</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">No test cases found.</td></tr>
               )}
               {filtered.map((tc, idx) => {
                 const story = store.userStories.find(s => s.id === tc.story_id)
@@ -212,7 +271,10 @@ export default function TestCasesPage() {
                 const canDeleteRow = can(currentUser?.global_role, 'deleteTestCase')
 
                 return (
-                  <tr key={tc.id}>
+                  <tr key={tc.id} className={selectedTCIds.includes(tc.id) ? 'bg-accent/30' : ''}>
+                    <td className="text-center">
+                      <input type="checkbox" className="accent-primary" checked={selectedTCIds.includes(tc.id)} onChange={() => toggleTC(tc.id)} />
+                    </td>
                     <td className="text-muted-foreground text-xs">{idx + 1}</td>
                     <td>
                       <div className="font-medium text-foreground max-w-xs truncate">{tc.title}</div>
@@ -247,6 +309,43 @@ export default function TestCasesPage() {
           </table>
         </div>
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      {selectedTCIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in flex items-center gap-4 bg-card border border-border shadow-2xl rounded-full px-6 py-3">
+          <span className="text-sm font-medium">{selectedTCIds.length} selected</span>
+          <div className="h-4 w-px bg-border"></div>
+          
+          <select 
+            className="text-xs bg-muted border-none rounded py-1.5 px-2 outline-none cursor-pointer"
+            onChange={e => { if (e.target.value) handleBulkUpdate('priority', e.target.value) }}
+            value=""
+          >
+            <option value="" disabled>Set Priority...</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+
+          <select 
+            className="text-xs bg-muted border-none rounded py-1.5 px-2 outline-none cursor-pointer"
+            onChange={e => { if (e.target.value) handleBulkUpdate('automation_status', e.target.value) }}
+            value=""
+          >
+            <option value="" disabled>Set Automation...</option>
+            <option value="MANUAL">Manual</option>
+            <option value="AUTOMATED">Automated</option>
+            <option value="SEMI_AUTOMATED">Semi-Automated</option>
+          </select>
+
+          {can(currentUser?.global_role, 'deleteTestCase') && (
+            <button className="btn-ghost btn-sm text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 flex items-center px-2 py-1 rounded" onClick={handleBulkDelete}>
+              <Trash2 className="w-3.5 h-3.5" /> Delete All
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Create/Edit Modal */}
       {showModal && (

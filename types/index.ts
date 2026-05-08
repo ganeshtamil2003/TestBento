@@ -46,6 +46,16 @@ export interface ProjectMember {
   profile?: Profile
 }
 
+export interface AppNotification {
+  id: string
+  user_id: string
+  title: string
+  message: string
+  link?: string
+  is_read: boolean
+  created_at: string
+}
+
 export interface Epic {
   id: string
   project_id: string
@@ -163,16 +173,25 @@ export interface ExecutionItem {
   defects?: Defect[]
 }
 
+export type DefectStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'
+
 export interface Defect {
   id: string
-  execution_item_id: string
+  project_id: string
+  execution_item_id?: string
+  test_case_id?: string
   title: string
   severity: DefectSeverity
+  status: DefectStatus
   description?: string
   jira_url?: string
+  assigned_to?: string
   created_by: string
   created_at: string
+  updated_at: string
   creator?: Profile
+  assignee?: Profile
+  test_case?: TestCase
 }
 
 export interface GeneratedTestCase {

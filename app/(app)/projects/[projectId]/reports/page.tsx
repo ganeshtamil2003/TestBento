@@ -18,6 +18,9 @@ export default function ReportsPage() {
   const store = useAppStore()
   const project = store.projects.find(p => p.id === projectId)
   const [activeTab, setActiveTab] = useState<'execution' | 'coverage' | 'defects'>('execution')
+  
+  const [selectedExecStatus, setSelectedExecStatus] = useState<string | null>(null)
+  const [selectedDefectSeverity, setSelectedDefectSeverity] = useState<string | null>(null)
 
   const epicIds = new Set(store.epics.filter(e => e.project_id === projectId).map(e => e.id))
   const featureIds = new Set(store.features.filter(f => epicIds.has(f.epic_id)).map(f => f.id))
@@ -137,8 +140,12 @@ export default function ReportsPage() {
               <div className="card-body flex flex-col items-center">
                 <ResponsiveContainer width="100%" height={160}>
                   <PieChart>
-                    <Pie data={overallPie} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
-                      {overallPie.map((_, i) => <Cell key={i} fill={EXEC_COLORS[i]} />)}
+                    <Pie 
+                      data={overallPie} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value"
+                      onClick={(data, index) => setSelectedExecStatus(data.name.toUpperCase().replace(' ', '_'))}
+                      className="cursor-pointer"
+                    >
+                      {overallPie.map((_, i) => <Cell key={i} fill={EXEC_COLORS[i]} className="hover:opacity-80 transition-opacity" />)}
                     </Pie>
                     <Tooltip contentStyle={{ borderRadius: '8px', fontSize: 12 }} />
                   </PieChart>
@@ -173,6 +180,35 @@ export default function ReportsPage() {
                     <Bar dataKey="Blocked" fill="#f97316" radius={[4,4,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+          {/* Dynamic Execution Items Table based on Chart Click */}
+          {selectedExecStatus && (
+            <div className="card overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+              <div className="card-header border-b flex items-center justify-between">
+                <h3 className="card-title">Execution Items: {selectedExecStatus.replace('_', ' ')}</h3>
+                <button onClick={() => setSelectedExecStatus(null)} className="text-xs text-muted-foreground hover:text-foreground">Clear Filter</button>
+              </div>
+              <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                <table className="data-table">
+                  <thead className="sticky top-0 bg-card"><tr><th>Test Case</th><th>Status</th><th>Executed At</th></tr></thead>
+                  <tbody>
+                    {executionItems.filter(ei => ei.status === selectedExecStatus).length === 0 && (
+                      <tr><td colSpan={3} className="text-center py-8 text-muted-foreground">No items match this filter.</td></tr>
+                    )}
+                    {executionItems.filter(ei => ei.status === selectedExecStatus).map(ei => {
+                      const tc = testCases.find(t => t.id === ei.test_case_id)
+                      return (
+                        <tr key={ei.id}>
+                          <td className="font-medium text-sm">{tc?.title || 'Unknown'}</td>
+                          <td><span className={`badge ${ei.status === 'PASS' ? 'bg-green-100 text-green-700' : ei.status === 'FAIL' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>{ei.status}</span></td>
+                          <td className="text-xs text-muted-foreground">{ei.executed_at ? new Date(ei.executed_at).toLocaleString() : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -251,22 +287,33 @@ export default function ReportsPage() {
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip contentStyle={{ borderRadius: '8px', fontSize: 12 }} />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4,4,0,0]} />
+                    <Bar 
+                      dataKey="count" fill="hsl(var(--primary))" radius={[4,4,0,0]} 
+                      onClick={(data) => setSelectedDefectSeverity(data.name)}
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
           <div className="card overflow-hidden">
-            <div className="card-header"><h3 className="card-title">All Defects</h3></div>
+            <div className="card-header border-b flex items-center justify-between">
+              <h3 className="card-title">
+                {selectedDefectSeverity ? `${selectedDefectSeverity} Defects` : 'All Defects'}
+              </h3>
+              {selectedDefectSeverity && (
+                <button onClick={() => setSelectedDefectSeverity(null)} className="text-xs text-muted-foreground hover:text-foreground">Clear Filter</button>
+              )}
+            </div>
             <div className="overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>Title</th><th>Severity</th><th>Logged By</th></tr></thead>
                 <tbody>
-                  {allDefects.length === 0 && <tr><td colSpan={3} className="text-center py-8 text-muted-foreground">No defects logged.</td></tr>}
-                  {allDefects.map(d => (
+                  {allDefects.filter(d => selectedDefectSeverity ? d.severity === selectedDefectSeverity : true).length === 0 && <tr><td colSpan={3} className="text-center py-8 text-muted-foreground">No defects match.</td></tr>}
+                  {allDefects.filter(d => selectedDefectSeverity ? d.severity === selectedDefectSeverity : true).map(d => (
                     <tr key={d.id}>
-                      <td><div className="font-medium text-sm">{d.title}</div>{d.description && <div className="text-xs text-muted-foreground">{d.description}</div>}</td>
+                      <td><div className="font-medium text-sm">{d.title}</div>{d.description && <div className="text-xs text-muted-foreground truncate max-w-xs">{d.description}</div>}</td>
                       <td><span className={`badge ${d.severity === 'CRITICAL' || d.severity === 'HIGH' ? 'bg-red-100 text-red-700' : d.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>{d.severity}</span></td>
                       <td className="text-sm text-muted-foreground">{store.profiles.find(p => p.id === d.created_by)?.full_name || '—'}</td>
                     </tr>

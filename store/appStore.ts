@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import type { Profile, Project, Epic, Feature, UserStory, TestCase, ReviewCycle, ExecutionCycle, ExecutionItem } from '@/types'
+import type { Profile, Project, Epic, Feature, UserStory, TestCase, ReviewCycle, ExecutionCycle, ExecutionItem, Defect, ProjectMember, AppNotification } from '@/types'
 
 interface AppState {
   currentUser: Profile
@@ -13,7 +13,10 @@ interface AppState {
   reviewCycles: ReviewCycle[]
   executionCycles: ExecutionCycle[]
   executionItems: ExecutionItem[]
+  defects: Defect[]
   profiles: Profile[]
+  projectMembers: ProjectMember[]
+  notifications: AppNotification[]
 
   // Actions
   setCurrentUser: (user: Profile) => void
@@ -41,6 +44,15 @@ interface AppState {
   addExecutionItem: (item: ExecutionItem) => void
   updateExecutionItem: (id: string, data: Partial<ExecutionItem>) => void
   removeExecutionItem: (id: string) => void
+  addDefect: (defect: Defect) => void
+  updateDefect: (id: string, data: Partial<Defect>) => void
+  deleteDefect: (id: string) => void
+  addProjectMember: (member: ProjectMember) => void
+  updateProjectMember: (id: string, data: Partial<ProjectMember>) => void
+  removeProjectMember: (id: string) => void
+  addNotification: (notification: AppNotification) => void
+  updateNotification: (id: string, data: Partial<AppNotification>) => void
+  markAllNotificationsRead: () => void
 
   setInitialData: (data: Partial<AppState>) => void
 }
@@ -55,7 +67,10 @@ export const useAppStore = create<AppState>()((set) => ({
   reviewCycles: [],
   executionCycles: [],
   executionItems: [],
+  defects: [],
   profiles: [],
+  projectMembers: [],
+  notifications: [],
 
   setCurrentUser: (user) => set({ currentUser: user }),
 
@@ -91,5 +106,16 @@ export const useAppStore = create<AppState>()((set) => ({
   updateExecutionItem: (id, data) => set((s) => ({ executionItems: s.executionItems.map((ei) => ei.id === id ? { ...ei, ...data } : ei) })),
   removeExecutionItem: (id) => set((s) => ({ executionItems: s.executionItems.filter((ei) => ei.id !== id) })),
 
-  setInitialData: (data) => set(data),
+  addDefect: (defect) => set((s) => ({ defects: [...s.defects, defect] })),
+  updateDefect: (id, data) => set((s) => ({ defects: s.defects.map((d) => d.id === id ? { ...d, ...data } : d) })),
+  deleteDefect: (id) => set((s) => ({ defects: s.defects.filter((d) => d.id !== id) })),
+
+  addProjectMember: (member) => set((s) => ({ projectMembers: [...s.projectMembers, member] })),
+  updateProjectMember: (id, data) => set((s) => ({ projectMembers: s.projectMembers.map(m => m.id === id ? { ...m, ...data } : m) })),
+  removeProjectMember: (id) => set((s) => ({ projectMembers: s.projectMembers.filter(m => m.id !== id) })),
+  addNotification: (n) => set((s) => ({ notifications: [n, ...s.notifications] })),
+  updateNotification: (id, data) => set((s) => ({ notifications: s.notifications.map(n => n.id === id ? { ...n, ...data } : n) })),
+  markAllNotificationsRead: () => set((s) => ({ notifications: s.notifications.map(n => ({ ...n, is_read: true })) })),
+
+  setInitialData: (data) => set((s) => ({ ...s, ...data })),
 }))
