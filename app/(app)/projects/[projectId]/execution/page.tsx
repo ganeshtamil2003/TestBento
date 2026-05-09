@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { ChevronRight, Plus, CheckCircle, XCircle, AlertTriangle, MinusCircle, Bug, Edit2, Trash2, UserRound, ExternalLink } from 'lucide-react'
+import { ChevronRight, Plus, CheckCircle, XCircle, AlertTriangle, MinusCircle, Bug, Edit2, Trash2, UserRound, ExternalLink, CheckCircle2 } from 'lucide-react'
 import { STATUS_COLORS, STATUS_LABELS, cn, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
+import { createNotification } from '@/lib/notifications'
 import type { ExecutionCycle, ExecutionItem, Defect } from '@/types'
 
 export default function ExecutionPage() {
@@ -105,6 +106,23 @@ export default function ExecutionPage() {
         `)
         if (!error && data) {
           data.forEach(ei => store.addExecutionItem(ei as ExecutionItem))
+          
+          // Group assignments to send summary notifications
+          const assigneeMap = new Map<string, number>()
+          data.forEach(ei => {
+            if (ei.assigned_to && ei.assigned_to !== store.currentUser.id) {
+              assigneeMap.set(ei.assigned_to, (assigneeMap.get(ei.assigned_to) || 0) + 1)
+            }
+          })
+          
+          assigneeMap.forEach((count, userId) => {
+            createNotification(supabase, store.addNotification, {
+              userId,
+              title: 'Test Cases Assigned',
+              message: `You have been assigned ${count} test case${count > 1 ? 's' : ''} for execution in cycle "${cycle?.name || 'Unknown'}".`,
+              link: `/projects/${projectId}/execution`
+            })
+          })
         }
       }
     } catch(err) {
@@ -140,6 +158,7 @@ export default function ExecutionPage() {
         description: defectForm.description,
         jira_url: defectForm.jira_url,
         created_by: store.currentUser.id,
+        assigned_to: store.currentUser.id,
       }
       
       const { error, data } = await supabase.from('defects').insert(newDefect).select().single()
@@ -174,11 +193,25 @@ export default function ExecutionPage() {
       }).eq('id', editItem.id)
       
       if (!error) {
+        const oldItem = store.executionItems.find(ei => ei.id === editItem.id)
+        
         store.updateExecutionItem(editItem.id, {
           assigned_to: editItem.assigned_to || undefined,
           notes: editItem.notes || undefined,
           assignee: editItem.assigned_to ? store.profiles.find(p => p.id === editItem.assigned_to) : undefined,
         })
+
+        // Notify if assigned to a new user
+        if (editItem.assigned_to && editItem.assigned_to !== oldItem?.assigned_to && editItem.assigned_to !== store.currentUser.id) {
+          const tc = projectTCs.find(t => t.id === oldItem?.test_case_id) || oldItem?.test_case
+          createNotification(supabase, store.addNotification, {
+            userId: editItem.assigned_to,
+            title: 'Test Case Assigned',
+            message: `You have been assigned the test case "${tc?.title || 'Unknown'}" for execution.`,
+            link: `/projects/${projectId}/execution`
+          })
+        }
+
         setEditItem(null)
       }
     } catch(err) {
@@ -346,20 +379,37 @@ export default function ExecutionPage() {
                         <td>
                           {(() => {
                             const itemDefects = store.defects.filter(d => d.execution_item_id === item.id)
-                            return itemDefects.length > 0 ? (
-                              <button 
-                                className="badge bg-red-100 text-red-700 text-xs hover:bg-red-200 transition-colors border-none cursor-pointer"
-                                onClick={() => setViewDefectItems(itemDefects)}
-                              >
-                                {itemDefects.length} defect{itemDefects.length > 1 ? 's' : ''}
-                              </button>
-                            ) : (
-                              item.status === 'FAIL' && can(store.currentUser?.global_role, 'updateExecution') && (
+                            const openDefects = itemDefects.filter(d => d.status === 'OPEN' || d.status === 'IN_PROGRESS')
+                            const resolvedDefects = itemDefects.filter(d => d.status === 'RESOLVED' || d.status === 'CLOSED')
+
+                            if (itemDefects.length > 0) {
+                              if (openDefects.length > 0) {
+                                return (
+                                  <button 
+                                    className="badge bg-red-100 text-red-700 text-xs hover:bg-red-200 transition-colors border-none cursor-pointer"
+                                    onClick={() => setViewDefectItems(itemDefects)}
+                                  >
+                                    {openDefects.length} open defect{openDefects.length > 1 ? 's' : ''}
+                                  </button>
+                                )
+                              } else {
+                                return (
+                                  <button 
+                                    className="badge bg-emerald-100 text-emerald-700 text-xs hover:bg-emerald-200 transition-colors border-none cursor-pointer flex items-center gap-1"
+                                    onClick={() => setViewDefectItems(itemDefects)}
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" /> {resolvedDefects.length} resolved
+                                  </button>
+                                )
+                              }
+                            } else if (item.status === 'FAIL' && can(store.currentUser?.global_role, 'updateExecution')) {
+                              return (
                                 <button id={`log-defect-${item.id}`} className="btn-ghost btn-sm text-xs text-red-600 flex items-center gap-1" onClick={() => setShowDefectModal(item.id)}>
                                   <Bug className="w-3 h-3" /> Log Defect
                                 </button>
                               )
-                            )
+                            }
+                            return null
                           })()}
                         </td>
                       </tr>
@@ -403,14 +453,14 @@ export default function ExecutionPage() {
             </div>
 
             {/* Select All row */}
-            {projectTCs.filter(tc => !activeItems.some(ei => ei.test_case_id === tc.id)).length > 0 && (
+            {projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).length > 0 && (
               <div className="flex items-center gap-3 px-3 py-2 border-b mb-1">
                 <input
                   type="checkbox"
                   className="accent-primary"
-                  checked={selectedTCs.length === projectTCs.filter(tc => !activeItems.some(ei => ei.test_case_id === tc.id)).length}
+                  checked={selectedTCs.length > 0 && selectedTCs.length === projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).length}
                   onChange={e => {
-                    const all = projectTCs.filter(tc => !activeItems.some(ei => ei.test_case_id === tc.id)).map(tc => tc.id)
+                    const all = projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).map(tc => tc.id)
                     setSelectedTCs(e.target.checked ? all : [])
                   }}
                 />
@@ -420,10 +470,10 @@ export default function ExecutionPage() {
             )}
 
             <div className="overflow-y-auto flex-1 space-y-1">
-              {projectTCs.filter(tc => !activeItems.some(ei => ei.test_case_id === tc.id)).length === 0 && (
+              {projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-8">All test cases are already added to this cycle.</p>
               )}
-              {projectTCs.filter(tc => !activeItems.some(ei => ei.test_case_id === tc.id)).map(tc => (
+              {projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).map(tc => (
                 <div key={tc.id} className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors', selectedTCs.includes(tc.id) ? 'bg-accent/30' : 'hover:bg-muted/50')}>
                   <input
                     type="checkbox"

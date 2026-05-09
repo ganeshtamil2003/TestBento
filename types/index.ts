@@ -1,4 +1,4 @@
-export type UserRole = 'QA_ENGINEER' | 'QA_LEAD' | 'MANAGER' | 'ADMIN'
+export type UserRole = 'QA_ENGINEER' | 'QA_LEAD' | 'MANAGER' | 'ADMIN' | 'DEVELOPER' | 'VIEWER'
 
 export type TestCaseStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED'
 
