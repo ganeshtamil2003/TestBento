@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Analytics } from "@vercel/analytics/react"
+import { Toaster } from 'sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         
         {/* Inject Vercel Web Analytics scripts for pageview tracking */}
         <Analytics />
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   )

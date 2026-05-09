@@ -88,6 +88,8 @@ export default function AdminClient({ profiles }: { profiles: Profile[] }) {
                       profile.global_role === 'ADMIN' ? 'bg-red-50 text-red-700 border-red-200' :
                       profile.global_role === 'MANAGER' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                       profile.global_role === 'QA_LEAD' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                      profile.global_role === 'DEVELOPER' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      profile.global_role === 'VIEWER' ? 'bg-gray-50 text-gray-700 border-gray-200' :
                       'bg-slate-100 text-slate-700 border-slate-200'
                     }`}>
                       {profile.global_role.replace('_', ' ')}
@@ -151,7 +153,9 @@ export default function AdminClient({ profiles }: { profiles: Profile[] }) {
                 <select id="global_role" name="global_role" className="form-input" required>
                   <option value="QA_ENGINEER">QA Engineer (Write Tests, Execute)</option>
                   <option value="QA_LEAD">QA Lead (Review/Approve, Assign)</option>
+                  <option value="DEVELOPER">Developer (Fix Defects)</option>
                   <option value="MANAGER">Manager (Read-Only Reports)</option>
+                  <option value="VIEWER">Viewer (Read-Only Access)</option>
                   <option value="ADMIN">Administrator (Full Access)</option>
                 </select>
               </div>

@@ -40,7 +40,7 @@ export default function ReviewsPage() {
 
   // TCs that are still in Draft / not yet submitted (no pending review)
   const submittableTCs = myTCs.filter(tc =>
-    tc.status === 'DRAFT' && !reviews.some(rc => rc.test_case_id === tc.id && rc.status === 'PENDING')
+    (tc.status === 'DRAFT' || tc.status === 'REJECTED') && !reviews.some(rc => rc.test_case_id === tc.id && rc.status === 'PENDING')
   )
 
   const allSelected = submittableTCs.length > 0 && selectedTCIds.length === submittableTCs.length

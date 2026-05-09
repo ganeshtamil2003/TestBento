@@ -22,8 +22,10 @@ export const PERMISSIONS = {
   
   updateExecution:  ['ADMIN', 'QA_LEAD', 'QA_ENGINEER'], // engineers can only update assigned ones
   
-  viewReports:      ['ADMIN', 'QA_LEAD', 'QA_ENGINEER', 'MANAGER'],
-  viewRTM:          ['ADMIN', 'QA_LEAD', 'QA_ENGINEER', 'MANAGER'],
+  updateDefect:     ['ADMIN', 'QA_LEAD', 'QA_ENGINEER', 'MANAGER', 'DEVELOPER'],
+
+  viewReports:      ['ADMIN', 'QA_LEAD', 'QA_ENGINEER', 'MANAGER', 'DEVELOPER', 'VIEWER'],
+  viewRTM:          ['ADMIN', 'QA_LEAD', 'QA_ENGINEER', 'MANAGER', 'DEVELOPER', 'VIEWER'],
   
   manageUsers:      ['ADMIN'],
 } as const

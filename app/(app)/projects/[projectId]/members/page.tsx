@@ -8,6 +8,7 @@ import { Users, ChevronRight, UserPlus, Shield, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { logAudit } from '@/lib/audit'
 import { can } from '@/lib/permissions'
+import { createNotification } from '@/lib/notifications'
 import type { ProjectMember, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -55,6 +56,15 @@ export default function MembersPage() {
           entityId: data.id,
           entityTitle: data.profile?.full_name || 'Unknown User'
         })
+
+        if (selectedUserId !== store.currentUser.id) {
+          createNotification(supabase, store.addNotification, {
+            userId: selectedUserId,
+            title: 'Added to Project',
+            message: `You have been added to the project "${project?.name || 'Unknown Project'}".`,
+            link: `/projects/${projectId}/dashboard`
+          })
+        }
 
         setShowAddModal(false)
         setSelectedUserId('')

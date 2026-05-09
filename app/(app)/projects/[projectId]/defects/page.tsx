@@ -39,7 +39,8 @@ export default function DefectsPage() {
   const supabase = createClient()
 
   const project = store.projects.find(p => p.id === projectId)
-  const projectMembers = store.profiles.filter(p => p.status === 'ACTIVE')
+  const projectMemberIds = new Set(store.projectMembers.filter(m => m.project_id === projectId).map(m => m.user_id))
+  const projectMembers = store.profiles.filter(p => p.status === 'ACTIVE' && projectMemberIds.has(p.id))
   
   // Aggregate all defects for this project
   const allDefects = store.defects
@@ -67,7 +68,8 @@ export default function DefectsPage() {
   const totalResolved = projectDefects.filter(d => d.status === 'RESOLVED' || d.status === 'CLOSED').length
   const totalCriticalHigh = projectDefects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.status !== 'CLOSED' && d.status !== 'RESOLVED').length
 
-  const canEdit = can(store.currentUser?.global_role, 'updateExecution')
+  const canEdit = can(store.currentUser?.global_role, 'updateDefect')
+  const canAssign = store.currentUser?.global_role === 'ADMIN' || store.currentUser?.global_role === 'QA_LEAD' || store.currentUser?.global_role === 'MANAGER'
 
   async function handleStatusChange(defectId: string, newStatus: DefectStatus) {
     if (!canEdit || isUpdating) return
@@ -95,7 +97,7 @@ export default function DefectsPage() {
   }
 
   async function handleAssigneeChange(defectId: string, assigneeId: string) {
-    if (!canEdit || isUpdating) return
+    if (!canAssign || isUpdating) return
     setIsUpdating(defectId)
     try {
       const { error } = await supabase.from('defects').update({ assigned_to: assigneeId || null, updated_at: new Date().toISOString() }).eq('id', defectId)
@@ -159,7 +161,7 @@ export default function DefectsPage() {
   }
 
   async function handleBulkAssign(assigneeId: string) {
-    if (selectedDefects.length === 0 || isBulkUpdating || !canEdit) return
+    if (selectedDefects.length === 0 || isBulkUpdating || !canAssign) return
     setIsBulkUpdating(true)
     try {
       const { error } = await supabase.from('defects').update({ assigned_to: assigneeId || null, updated_at: new Date().toISOString() }).in('id', selectedDefects)
@@ -340,7 +342,7 @@ export default function DefectsPage() {
                     </span>
                   </td>
                   <td>
-                    {canEdit ? (
+                    {canAssign ? (
                       <select
                         className="text-xs p-1 rounded border bg-transparent"
                         value={defect.assigned_to || ''}
@@ -403,17 +405,19 @@ export default function DefectsPage() {
             <option value="CLOSED">Closed</option>
           </select>
 
-          <select 
-            className="text-xs bg-muted border-none rounded py-1.5 px-2 outline-none cursor-pointer"
-            onChange={e => { handleBulkAssign(e.target.value) }}
-            value=""
-          >
-            <option value="" disabled>Assign To...</option>
-            <option value="">Unassigned</option>
-            {projectMembers.map(m => (
-              <option key={m.id} value={m.id}>{m.full_name}</option>
-            ))}
-          </select>
+          {canAssign && (
+            <select 
+              className="text-xs bg-muted border-none rounded py-1.5 px-2 outline-none cursor-pointer"
+              onChange={e => { handleBulkAssign(e.target.value) }}
+              value=""
+            >
+              <option value="" disabled>Assign To...</option>
+              <option value="">Unassigned</option>
+              {projectMembers.map(m => (
+                <option key={m.id} value={m.id}>{m.full_name}</option>
+              ))}
+            </select>
+          )}
         </div>
       )}
     </div>
