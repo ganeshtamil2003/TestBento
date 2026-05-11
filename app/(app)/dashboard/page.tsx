@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, Legend
+  PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, Legend
 } from 'recharts'
 
 const EXEC_COLORS = ['#22c55e', '#ef4444', '#f97316', '#94a3b8']
@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const store = useAppStore()
   const { projects, testCases, reviewCycles, executionItems, currentUser } = store
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL')
+  const [selectedCycleId, setSelectedCycleId] = useState<string>('ALL')
 
   const isAll = selectedProjectId === 'ALL'
   const activeProjectIds = isAll ? projects.map(p => p.id) : [selectedProjectId]
@@ -42,14 +43,18 @@ export default function DashboardPage() {
   const activeExecutionItems = executionItems.filter(ei => cycleIds.has(ei.cycle_id))
   const activeReviews = reviewCycles.filter(rc => tcIds.has(rc.test_case_id))
 
+  const filteredExecutionItems = selectedCycleId === 'ALL' 
+    ? activeExecutionItems 
+    : activeExecutionItems.filter(ei => ei.cycle_id === selectedCycleId)
+
   const totalTCs = activeTestCases.length
   const approvedTCs = activeTestCases.filter(tc => tc.status === 'APPROVED').length
   const pendingReviews = activeReviews.filter(rc => rc.status === 'PENDING').length
-  const passCount = activeExecutionItems.filter(ei => ei.status === 'PASS').length
-  const failCount = activeExecutionItems.filter(ei => ei.status === 'FAIL').length
-  const blockedCount = activeExecutionItems.filter(ei => ei.status === 'BLOCKED').length
-  const notRunCount = activeExecutionItems.filter(ei => ei.status === 'NOT_RUN').length
-  const totalExecItems = activeExecutionItems.length
+  const passCount = filteredExecutionItems.filter(ei => ei.status === 'PASS').length
+  const failCount = filteredExecutionItems.filter(ei => ei.status === 'FAIL').length
+  const blockedCount = filteredExecutionItems.filter(ei => ei.status === 'BLOCKED').length
+  const notRunCount = filteredExecutionItems.filter(ei => ei.status === 'NOT_RUN').length
+  const totalExecItems = filteredExecutionItems.length
   const passRate = totalExecItems > 0 ? Math.round((passCount / totalExecItems) * 100) : 0
 
   const statCards = [
@@ -90,11 +95,20 @@ export default function DashboardPage() {
     { name: 'Manual', value: activeTestCases.filter(tc => tc.automation_status === 'MANUAL').length },
   ].filter(d => d.value > 0)
 
-  const trendData = [
-    { sprint: 'S3', pass: 8, fail: 3, blocked: 1 },
-    { sprint: 'S4', pass: 12, fail: 4, blocked: 2 },
-    { sprint: 'S5', pass: passCount, fail: failCount, blocked: blockedCount },
-  ]
+  const trendData = activeCycles.length > 0 
+    ? activeCycles
+        .slice()
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .map(cycle => {
+          const cycleItems = activeExecutionItems.filter(ei => ei.cycle_id === cycle.id)
+          return {
+            sprint: cycle.name.length > 15 ? cycle.name.substring(0, 15) + '...' : cycle.name,
+            pass: cycleItems.filter(ei => ei.status === 'PASS').length,
+            fail: cycleItems.filter(ei => ei.status === 'FAIL').length,
+            blocked: cycleItems.filter(ei => ei.status === 'BLOCKED').length,
+          }
+        })
+    : []
 
   return (
     <div className="space-y-6">
@@ -112,13 +126,32 @@ export default function DashboardPage() {
           <select 
             className="input h-10 px-3 cursor-pointer min-w-[200px]"
             value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
+            onChange={(e) => {
+              setSelectedProjectId(e.target.value)
+              setSelectedCycleId('ALL')
+            }}
           >
             <option value="ALL">All Projects</option>
             {projects.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+
+          {!isAll && (
+            <>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider ml-2">Sprint:</span>
+              <select 
+                className="input h-10 px-3 cursor-pointer min-w-[150px]"
+                value={selectedCycleId}
+                onChange={(e) => setSelectedCycleId(e.target.value)}
+              >
+                <option value="ALL">All Sprints</option>
+                {activeCycles.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
       {/* Stat Cards */}
@@ -190,18 +223,22 @@ export default function DashboardPage() {
         <div className="card lg:col-span-2">
           <div className="card-header"><h3 className="card-title">Execution Trend</h3></div>
           <div className="card-body">
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="sprint" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))', fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="pass" stroke="#22c55e" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="fail" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="blocked" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
+            {trendData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="sprint" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))', fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Area type="monotone" dataKey="pass" stackId="1" stroke="#22c55e" fill="#22c55e" />
+                  <Area type="monotone" dataKey="fail" stackId="1" stroke="#ef4444" fill="#ef4444" />
+                  <Area type="monotone" dataKey="blocked" stackId="1" stroke="#f97316" fill="#f97316" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-muted-foreground text-sm py-10 text-center">No sprint cycles found.</p>
+            )}
           </div>
         </div>
 
@@ -247,20 +284,31 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {projects.map(p => (
-                <tr key={p.id}>
-                  <td>
-                    <div className="font-medium text-foreground">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">{p.description}</div>
-                  </td>
-                  <td className="text-muted-foreground">{p._counts?.epics ?? 0}</td>
-                  <td className="text-muted-foreground">{p._counts?.test_cases ?? 0}</td>
-                  <td className="text-muted-foreground">{p._counts?.members ?? 0}</td>
-                  <td>
-                    <Link href={`/projects/${p.id}/hierarchy`} className="btn-secondary btn-sm">Open</Link>
-                  </td>
-                </tr>
-              ))}
+              {projects.map(p => {
+                const pEpics = store.epics.filter(e => e.project_id === p.id)
+                const pEpicIds = new Set(pEpics.map(e => e.id))
+                const pFeatures = store.features.filter(f => pEpicIds.has(f.epic_id))
+                const pFeatureIds = new Set(pFeatures.map(f => f.id))
+                const pStories = store.userStories.filter(s => pFeatureIds.has(s.feature_id))
+                const pStoryIds = new Set(pStories.map(s => s.id))
+                const pTCs = testCases.filter(tc => pStoryIds.has(tc.story_id))
+                const pMembers = store.projectMembers.filter(m => m.project_id === p.id)
+                
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <div className="font-medium text-foreground">{p.name}</div>
+                      <div className="text-xs text-muted-foreground">{p.description}</div>
+                    </td>
+                    <td className="text-muted-foreground">{pEpics.length}</td>
+                    <td className="text-muted-foreground">{pTCs.length}</td>
+                    <td className="text-muted-foreground">{pMembers.length}</td>
+                    <td>
+                      <Link href={`/projects/${p.id}/hierarchy`} className="btn-secondary btn-sm">Open</Link>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

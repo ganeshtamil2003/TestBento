@@ -31,6 +31,8 @@ export default function ExecutionPage() {
   const [viewDefectItems, setViewDefectItems] = useState<Defect[] | null>(null)
   // editItem: id of execution item being edited (reassign / notes / remove)
   const [editItem, setEditItem] = useState<{ id: string; assigned_to: string; notes: string } | null>(null)
+  const [editCycleId, setEditCycleId] = useState<string | null>(null)
+  const [deleteCyclePrompt, setDeleteCyclePrompt] = useState<string | null>(null)
   const [cycleForm, setCycleForm] = useState({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
   const [defectForm, setDefectForm] = useState({ title: '', severity: 'HIGH', description: '', jira_url: '' })
   const [selectedTCs, setSelectedTCs] = useState<string[]>([])
@@ -52,32 +54,80 @@ export default function ExecutionPage() {
   const notRunCount = activeItems.filter(ei => ei.status === 'NOT_RUN').length
   const total = activeItems.length
 
-  async function createCycle(e: React.FormEvent) {
+  async function saveCycle(e: React.FormEvent) {
     e.preventDefault()
     if (isSubmitting) return
     setIsSubmitting(true)
     try {
-      const { data, error } = await supabase.from('execution_cycles').insert({
-        project_id: projectId,
-        name: cycleForm.name,
-        type: cycleForm.type,
-        sprint_name: cycleForm.sprint_name,
-        start_date: cycleForm.start_date,
-        end_date: cycleForm.end_date,
-        created_by: store.currentUser.id,
-      }).select().single()
+      if (editCycleId) {
+        const { data, error } = await supabase.from('execution_cycles').update({
+          name: cycleForm.name,
+          type: cycleForm.type,
+          sprint_name: cycleForm.sprint_name,
+          start_date: cycleForm.start_date,
+          end_date: cycleForm.end_date,
+        }).eq('id', editCycleId).select().single()
 
-      if (!error && data) {
-        store.addExecutionCycle({ ...data, _counts: { total: 0, pass: 0, fail: 0, blocked: 0, not_run: 0 } } as ExecutionCycle)
-        setActiveCycle(data.id)
-        setShowCycleModal(false)
-        setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+        if (!error && data) {
+          store.updateExecutionCycle(editCycleId, data as ExecutionCycle)
+          setShowCycleModal(false)
+          setEditCycleId(null)
+          setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+        }
+      } else {
+        const { data, error } = await supabase.from('execution_cycles').insert({
+          project_id: projectId,
+          name: cycleForm.name,
+          type: cycleForm.type,
+          sprint_name: cycleForm.sprint_name,
+          start_date: cycleForm.start_date,
+          end_date: cycleForm.end_date,
+          created_by: store.currentUser.id,
+        }).select().single()
+
+        if (!error && data) {
+          store.addExecutionCycle({ ...data, _counts: { total: 0, pass: 0, fail: 0, blocked: 0, not_run: 0 } } as ExecutionCycle)
+          setActiveCycle(data.id)
+          setShowCycleModal(false)
+          setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+        }
       }
     } catch(err) {
       console.error(err)
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  async function deleteCycle(cycleId: string) {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      const { error } = await supabase.from('execution_cycles').delete().eq('id', cycleId)
+      if (!error) {
+        store.deleteExecutionCycle(cycleId)
+        if (activeCycle === cycleId) {
+          setActiveCycle(cycles.find(c => c.id !== cycleId)?.id || '')
+        }
+        setDeleteCyclePrompt(null)
+      }
+    } catch(err) {
+      console.error(err)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function openEditCycle(c: ExecutionCycle) {
+    setCycleForm({
+      name: c.name,
+      type: c.type,
+      sprint_name: c.sprint_name || '',
+      start_date: c.start_date || '',
+      end_date: c.end_date || ''
+    })
+    setEditCycleId(c.id)
+    setShowCycleModal(true)
   }
 
   async function addToCycle(e: React.FormEvent) {
@@ -249,7 +299,11 @@ export default function ExecutionPage() {
           <h1 className="page-title">Test Execution</h1>
         </div>
         {can(store.currentUser?.global_role, 'createCycle') && (
-          <button id="new-cycle-btn" className="btn-primary" onClick={() => setShowCycleModal(true)}>
+          <button id="new-cycle-btn" className="btn-primary" onClick={() => {
+            setEditCycleId(null)
+            setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+            setShowCycleModal(true)
+          }}>
             <Plus className="w-4 h-4" /> New Cycle
           </button>
         )}
@@ -275,11 +329,21 @@ export default function ExecutionPage() {
                 <h3 className="font-semibold">{cycle.name}</h3>
                 <p className="text-sm text-muted-foreground">{cycle.sprint_name && `Sprint: ${cycle.sprint_name} · `}{cycle.start_date && `${formatDate(cycle.start_date)} – ${cycle.end_date ? formatDate(cycle.end_date) : 'ongoing'}`}</p>
               </div>
-              {can(store.currentUser?.global_role, 'editCycle') && (
-                <button className="btn-secondary btn-sm" onClick={() => setShowTCModal(true)}>
-                  <Plus className="w-3.5 h-3.5" /> Add Test Cases
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {can(store.currentUser?.global_role, 'editCycle') && (
+                  <>
+                    <button className="btn-ghost btn-icon p-1.5 text-muted-foreground hover:text-primary" onClick={() => openEditCycle(cycle)} title="Edit Cycle">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button className="btn-ghost btn-icon p-1.5 text-muted-foreground hover:text-destructive" onClick={() => setDeleteCyclePrompt(cycle.id)} title="Delete Cycle">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button className="btn-secondary btn-sm" onClick={() => setShowTCModal(true)}>
+                      <Plus className="w-3.5 h-3.5" /> Add Test Cases
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             {total > 0 && (
               <div>
@@ -422,12 +486,12 @@ export default function ExecutionPage() {
         </>
       )}
 
-      {/* New Cycle Modal */}
+      {/* Cycle Modal (Create/Edit) */}
       {showCycleModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCycleModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowCycleModal(false); setEditCycleId(null); setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' }) }}>
           <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-4">Create Execution Cycle</h2>
-            <form onSubmit={createCycle} className="space-y-4">
+            <h2 className="text-lg font-semibold mb-4">{editCycleId ? 'Edit Execution Cycle' : 'Create Execution Cycle'}</h2>
+            <form onSubmit={saveCycle} className="space-y-4">
               <div><label className="form-label">Cycle Name *</label><input className="form-input" placeholder="e.g. Sprint 7 - Auth Module" value={cycleForm.name} onChange={e => setCycleForm(f => ({...f, name: e.target.value}))} required /></div>
               <div><label className="form-label">Type</label><select className="form-input" value={cycleForm.type} onChange={e => setCycleForm(f => ({...f, type: e.target.value}))}>
                 {['SPRINT','RELEASE','REGRESSION'].map(t => <option key={t} value={t}>{t}</option>)}
@@ -437,7 +501,7 @@ export default function ExecutionPage() {
                 <div><label className="form-label">Start Date</label><input type="date" className="form-input" value={cycleForm.start_date} onChange={e => setCycleForm(f => ({...f, start_date: e.target.value}))} /></div>
                 <div><label className="form-label">End Date</label><input type="date" className="form-input" value={cycleForm.end_date} onChange={e => setCycleForm(f => ({...f, end_date: e.target.value}))} /></div>
               </div>
-              <div className="flex gap-3"><button type="button" className="btn-secondary flex-1" onClick={() => setShowCycleModal(false)}>Cancel</button><button type="submit" className="btn-primary flex-1">Create</button></div>
+              <div className="flex gap-3"><button type="button" className="btn-secondary flex-1" onClick={() => { setShowCycleModal(false); setEditCycleId(null); setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' }) }}>Cancel</button><button type="submit" className="btn-primary flex-1">{editCycleId ? 'Save Changes' : 'Create'}</button></div>
             </form>
           </div>
         </div>
@@ -672,6 +736,28 @@ export default function ExecutionPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Cycle Prompt */}
+      {deleteCyclePrompt && (() => {
+        const cycleToDelete = cycles.find(c => c.id === deleteCyclePrompt)
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={() => setDeleteCyclePrompt(null)}>
+            <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+              <h2 className="text-lg font-semibold text-red-600 flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-5 h-5" /> Delete Execution Cycle
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete the cycle <span className="font-semibold text-foreground">"{cycleToDelete?.name}"</span>? 
+                This will also permanently delete all associated execution items and results. This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button className="btn-secondary flex-1" onClick={() => setDeleteCyclePrompt(null)}>Cancel</button>
+                <button className="btn-primary flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => deleteCycle(deleteCyclePrompt)}>Delete Cycle</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAppStore } from '@/store/appStore'
 import { getActiveProfiles } from '@/app/actions/profiles'
@@ -8,9 +8,10 @@ import { getActiveProfiles } from '@/app/actions/profiles'
 import { toast } from 'sonner'
 import { AppNotification } from '@/types'
 
-export default function ClientDataHydrator({ children }: { children: React.ReactNode }) {
+export default function ClientDataHydrator({ children, userId }: { children: React.ReactNode, userId: string }) {
   const { setInitialData, addNotification } = useAppStore()
   const [loading, setLoading] = useState(true)
+  const hasToastedRef = useRef(false)
 
   useEffect(() => {
     let subscription: any = null
@@ -63,10 +64,11 @@ export default function ClientDataHydrator({ children }: { children: React.React
         })
 
         // --- Notification Logic ---
-        if (notifications && notifications.length > 0) {
-          const unreadCount = notifications.filter(n => !n.is_read).length
+        if (notifications && notifications.length > 0 && !hasToastedRef.current && userId) {
+          const unreadCount = notifications.filter(n => !n.is_read && n.user_id === userId).length
           if (unreadCount > 0) {
-            toast(`You have ${unreadCount} new message${unreadCount > 1 ? 's' : ''}`)
+            toast(`You have ${unreadCount} unread message${unreadCount > 1 ? 's' : ''}`, { id: 'initial-unread-toast' })
+            hasToastedRef.current = true
           }
         }
 
@@ -107,7 +109,7 @@ export default function ClientDataHydrator({ children }: { children: React.React
         createClient().removeChannel(subscription)
       }
     }
-  }, [setInitialData, addNotification])
+  }, [setInitialData, addNotification, userId])
 
   if (loading) {
     return (
