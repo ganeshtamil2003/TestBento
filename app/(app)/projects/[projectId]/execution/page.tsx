@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { toast } from 'sonner'
 import type { ExecutionCycle, ExecutionItem, Defect } from '@/types'
 
 export default function ExecutionPage() {
@@ -182,6 +183,40 @@ export default function ExecutionPage() {
       setTcAssignees({})
       setShowTCModal(false)
       setIsSubmitting(false)
+    }
+  }
+
+  async function updateAssignee(itemId: string, assigned_to: string) {
+    const newAssignedTo = assigned_to || null
+    const oldItem = store.executionItems.find(ei => ei.id === itemId)
+    
+    // Optimistic update
+    store.updateExecutionItem(itemId, { 
+      assigned_to: newAssignedTo as string,
+      assignee: newAssignedTo ? store.profiles.find(p => p.id === newAssignedTo) : undefined
+    })
+
+    const { error } = await supabase.from('execution_items').update({
+      assigned_to: newAssignedTo
+    }).eq('id', itemId)
+    
+    if (error) {
+      store.updateExecutionItem(itemId, { 
+        assigned_to: oldItem?.assigned_to,
+        assignee: oldItem?.assignee
+      })
+      toast.error('Failed to update assignee')
+    } else if (newAssignedTo && newAssignedTo !== oldItem?.assigned_to && newAssignedTo !== store.currentUser.id) {
+      const tc = projectTCs.find(t => t.id === oldItem?.test_case_id) || oldItem?.test_case
+      createNotification(supabase, store.addNotification, {
+        userId: newAssignedTo,
+        title: 'Test Case Reassigned',
+        message: `You have been assigned the test case "${tc?.title || 'Unknown'}" for execution.`,
+        link: `/projects/${projectId}/execution`
+      })
+      toast.success('Assignee updated')
+    } else {
+      toast.success('Assignee updated')
     }
   }
 
@@ -394,13 +429,26 @@ export default function ExecutionPage() {
                           </div>
                           {item.notes && <div className="text-xs text-muted-foreground italic mt-0.5">📝 {item.notes}</div>}
                         </td>
-                        {/* Assigned To — click pencil to edit */}
+                        {/* Assigned To */}
                         <td>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {store.profiles.find(p => p.id === item.assigned_to)?.full_name || <span className="italic">Unassigned</span>}
-                            </span>
-                          </div>
+                          {can(store.currentUser?.global_role, 'editCycle') ? (
+                            <select
+                              className="form-input text-xs py-1 h-8 bg-transparent hover:bg-muted border-transparent hover:border-border cursor-pointer transition-colors w-36"
+                              value={item.assigned_to || ''}
+                              onChange={(e) => updateAssignee(item.id, e.target.value)}
+                            >
+                              <option value="">Unassigned</option>
+                              {projectMembers.map(m => (
+                                <option key={m.id} value={m.id}>{m.full_name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">
+                                {store.profiles.find(p => p.id === item.assigned_to)?.full_name || <span className="italic">Unassigned</span>}
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td>
                           <span className={cn('badge', STATUS_COLORS[item.status])}>
