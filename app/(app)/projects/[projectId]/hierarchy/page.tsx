@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2, FileText } from 'lucide-react'
+import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2, FileText, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import type { Epic, Feature, UserStory } from '@/types'
@@ -23,6 +23,7 @@ export default function HierarchyPage() {
   const [modal, setModal] = useState<{ type: 'epic' | 'feature' | 'story'; parentId?: string } | null>(null)
   const [viewAC, setViewAC] = useState<UserStory | null>(null)
   const [form, setForm] = useState({ title: '', description: '', acceptance_criteria: '' })
+  const [deletePrompt, setDeletePrompt] = useState<{ type: 'epics'|'features'|'user_stories', id: string, name: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   function toggleEpic(id: string) {
@@ -124,7 +125,7 @@ export default function HierarchyPage() {
                     </button>
                   )}
                   {canDelete && (
-                    <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={e => { e.stopPropagation(); handleDelete('epics', epic.id) }}>
+                    <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={e => { e.stopPropagation(); setDeletePrompt({ type: 'epics', id: epic.id, name: epic.title }) }}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
@@ -151,7 +152,7 @@ export default function HierarchyPage() {
                           </button>
                         )}
                         {canDelete && (
-                          <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={e => { e.stopPropagation(); handleDelete('features', feature.id) }}>
+                          <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={e => { e.stopPropagation(); setDeletePrompt({ type: 'features', id: feature.id, name: feature.title }) }}>
                             <Trash2 className="w-3 h-3" />
                           </button>
                         )}
@@ -180,7 +181,7 @@ export default function HierarchyPage() {
                             </span>
                             <Link href={`/projects/${projectId}/test-cases?story=${story.id}`} className="btn-secondary btn-sm text-xs">View TCs</Link>
                             {canDelete && (
-                              <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={() => handleDelete('user_stories', story.id)}>
+                              <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={() => setDeletePrompt({ type: 'user_stories', id: story.id, name: story.title })}>
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             )}
@@ -245,6 +246,31 @@ export default function HierarchyPage() {
             </div>
             <div className="mt-6 flex justify-end">
               <button className="btn-secondary" onClick={() => setViewAC(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deletePrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={() => setDeletePrompt(null)}>
+          <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-red-600 flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-5 h-5" /> Delete {deletePrompt.type === 'epics' ? 'Epic' : deletePrompt.type === 'features' ? 'Feature' : 'User Story'}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Are you sure you want to delete <span className="font-semibold text-foreground">"{deletePrompt.name}"</span>? 
+              This will permanently delete all child items associated with it. This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button className="btn-secondary flex-1" onClick={() => setDeletePrompt(null)}>Cancel</button>
+              <button 
+                className="btn-primary flex-1 bg-red-600 hover:bg-red-700 text-white" 
+                onClick={async () => {
+                  await handleDelete(deletePrompt.type, deletePrompt.id)
+                  setDeletePrompt(null)
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
