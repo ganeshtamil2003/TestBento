@@ -28,7 +28,9 @@ export default function ReportsPage() {
   const testCases = store.testCases.filter(tc => storyIds.has(tc.story_id))
   const cycles = store.executionCycles.filter(c => c.project_id === projectId)
   const executionItems = store.executionItems.filter(ei => testCases.some(tc => tc.id === ei.test_case_id))
-  const allDefects = executionItems.flatMap(ei => ei.defects || [])
+  const allDefects = store.defects.filter(d => d.project_id === projectId)
+  const [defectStatusFilter, setDefectStatusFilter] = useState<'ACTIVE' | 'ALL'>('ACTIVE')
+  const filteredDefects = allDefects.filter(d => defectStatusFilter === 'ALL' || d.status === 'OPEN' || d.status === 'IN_PROGRESS')
 
   const execByFeature = store.features.filter(f => featureIds.has(f.id)).map(f => {
     const fStoryIds = new Set(store.userStories.filter(s => s.feature_id === f.id).map(s => s.id))
@@ -67,7 +69,7 @@ export default function ReportsPage() {
 
   const defectBySeverity = ['CRITICAL','HIGH','MEDIUM','LOW'].map(s => ({
     name: s,
-    count: allDefects.filter(d => d.severity === s).length
+    count: filteredDefects.filter(d => d.severity === s).length
   })).filter(d => d.count > 0)
 
   const COVER_COLORS = ['#6366f1', '#3b82f6', '#94a3b8', '#ef4444']
@@ -106,7 +108,7 @@ export default function ReportsPage() {
               { label: 'Total Executed', value: executionItems.filter(e => e.status !== 'NOT_RUN').length, color: 'text-primary' },
               { label: 'Pass Rate', value: executionItems.length > 0 ? `${Math.round((executionItems.filter(e=>e.status==='PASS').length/executionItems.length)*100)}%` : '0%', color: 'text-green-600' },
               { label: 'Fail Rate', value: executionItems.length > 0 ? `${Math.round((executionItems.filter(e=>e.status==='FAIL').length/executionItems.length)*100)}%` : '0%', color: 'text-red-600' },
-              { label: 'Open Defects', value: allDefects.length, color: 'text-orange-600' },
+              { label: 'Open Defects', value: allDefects.filter(d => d.status === 'OPEN' || d.status === 'IN_PROGRESS').length, color: 'text-orange-600' },
             ].map(kpi => (
               <div key={kpi.label} className="stat-card text-center">
                 <div className={`text-3xl font-bold mb-1 ${kpi.color}`}>{kpi.value}</div>
@@ -265,9 +267,27 @@ export default function ReportsPage() {
 
       {activeTab === 'defects' && (
         <div className="space-y-5">
+          <div className="flex justify-between items-center bg-card p-3 rounded-xl border border-border shadow-sm">
+            <h2 className="text-sm font-semibold text-foreground">Defect Report Scope</h2>
+            <div className="flex gap-1 bg-muted p-1 rounded-lg">
+              <button 
+                onClick={() => setDefectStatusFilter('ACTIVE')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${defectStatusFilter === 'ACTIVE' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Active Defects Only
+              </button>
+              <button 
+                onClick={() => setDefectStatusFilter('ALL')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${defectStatusFilter === 'ALL' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                All Defects
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {['CRITICAL','HIGH','MEDIUM','LOW'].map(s => {
-              const cnt = allDefects.filter(d => d.severity === s).length
+              const cnt = filteredDefects.filter(d => d.severity === s).length
               const colors = { CRITICAL: 'text-red-900', HIGH: 'text-red-600', MEDIUM: 'text-yellow-600', LOW: 'text-green-600' }
               return (
                 <div key={s} className="stat-card text-center">
@@ -310,8 +330,8 @@ export default function ReportsPage() {
               <table className="data-table">
                 <thead><tr><th>Title</th><th>Severity</th><th>Logged By</th></tr></thead>
                 <tbody>
-                  {allDefects.filter(d => selectedDefectSeverity ? d.severity === selectedDefectSeverity : true).length === 0 && <tr><td colSpan={3} className="text-center py-8 text-muted-foreground">No defects match.</td></tr>}
-                  {allDefects.filter(d => selectedDefectSeverity ? d.severity === selectedDefectSeverity : true).map(d => (
+                  {filteredDefects.filter(d => selectedDefectSeverity ? d.severity === selectedDefectSeverity : true).length === 0 && <tr><td colSpan={3} className="text-center py-8 text-muted-foreground">No defects match.</td></tr>}
+                  {filteredDefects.filter(d => selectedDefectSeverity ? d.severity === selectedDefectSeverity : true).map(d => (
                     <tr key={d.id}>
                       <td><div className="font-medium text-sm">{d.title}</div>{d.description && <div className="text-xs text-muted-foreground truncate max-w-xs">{d.description}</div>}</td>
                       <td><span className={`badge ${d.severity === 'CRITICAL' || d.severity === 'HIGH' ? 'bg-red-100 text-red-700' : d.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>{d.severity}</span></td>
