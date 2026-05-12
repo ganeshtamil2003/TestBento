@@ -344,7 +344,7 @@ export default function DefectsPage() {
                   <td>
                     {canAssign ? (
                       <select
-                        className="text-xs p-1 rounded border bg-transparent"
+                        className="text-xs p-1 rounded border bg-card outline-none cursor-pointer"
                         value={defect.assigned_to || ''}
                         onChange={(e) => handleAssigneeChange(defect.id, e.target.value)}
                         disabled={isUpdating === defect.id}

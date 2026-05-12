@@ -21,9 +21,9 @@ export default function ClientLayout({ children, userProfile }: { children: Reac
 
   return (
     <ClientDataHydrator userId={userProfile.id}>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-screen overflow-hidden" style={{ padding: '10px', gap: '10px' }}>
         <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden rounded-2xl" style={{ background: 'rgba(255,255,255,0.28)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.55)', boxShadow: '0 4px 32px rgba(100,130,200,0.18)' }}>
           <Header />
           <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
             {children}
