@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,120 +6,133 @@
 
 @layer base {
   :root {
-    --background: 220 25% 97%;
-    --foreground: 224 30% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 30% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 30% 12%;
-    --primary: 235 85% 60%;
+    /* ── Float & Glass Theme ─────────────────── */
+    --background:    220 30% 95%;
+    --foreground:    220 30% 9%;
+
+    --card:          0 0% 100%;
+    --card-foreground: 220 30% 9%;
+
+    --popover:       0 0% 100%;
+    --popover-foreground: 220 30% 9%;
+
+    /* Electric blue primary */
+    --primary:       217 91% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 93%;
-    --secondary-foreground: 224 30% 12%;
-    --muted: 220 15% 93%;
-    --muted-foreground: 220 10% 46%;
-    --accent: 235 85% 96%;
-    --accent-foreground: 235 85% 40%;
-    --destructive: 0 84% 60%;
+
+    --secondary:     220 15% 92%;
+    --secondary-foreground: 220 30% 12%;
+
+    --muted:         220 15% 92%;
+    --muted-foreground: 220 12% 46%;
+
+    /* Light blue tint for hover backgrounds */
+    --accent:        217 91% 94%;
+    --accent-foreground: 217 91% 35%;
+
+    --destructive:   0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 235 85% 60%;
-    --radius: 0.625rem;
-    --sidebar: 228 35% 14%;
-    --sidebar-foreground: 220 20% 88%;
-    --sidebar-border: 228 35% 20%;
-    --sidebar-accent: 228 35% 20%;
+
+    --border:        220 18% 87%;
+    --input:         220 18% 87%;
+    --ring:          217 91% 60%;
+    --radius:        0.75rem;
+
+    /* ── Sidebar: Deep Navy ────────────────── */
+    --sidebar:       228 55% 8%;
+    --sidebar-foreground:   220 18% 65%;
+    --sidebar-border:       228 55% 13%;
+    --sidebar-accent:       228 55% 14%;
     --sidebar-accent-foreground: 0 0% 100%;
+
+    /* Blue glow for the active sidebar left-border */
+    --sidebar-active-glow: 217 91% 65%;
   }
 
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', system-ui, sans-serif;
+    @apply text-foreground;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    /* Rich vivid gradient — the core visual identity of this theme */
+    background: linear-gradient(135deg, #8EB8F7 0%, #A8B8FF 30%, #8AC4F5 60%, #A0BCF8 100%);
+    background-attachment: fixed;
   }
 
   *:focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
-  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/30; }
 }
 
 @layer components {
+
+  /* ── Sidebar Navigation ──────────────────────── */
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-           text-sidebar-foreground/70 transition-all duration-150
-           hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+    @apply relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+           text-sidebar-foreground/60 transition-all duration-150
+           hover:bg-sidebar-accent hover:text-white;
   }
   .sidebar-item.active {
-    @apply bg-sidebar-accent text-sidebar-accent-foreground;
+    @apply bg-sidebar-accent text-white;
+    /* Amber left-border glow — the signature of this theme */
+    box-shadow: inset 3px 0 0 hsl(var(--sidebar-active-glow));
   }
 
+  /* ── Cards & Layout ───────────────────────── */
   .stat-card {
-    @apply bg-card rounded-xl border p-5 hover:shadow-md transition-shadow duration-200;
+    /* Crisp white card with a blue left-accent stripe — consistent on all screens */
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(147, 197, 253, 0.5);
+    border-left: 3px solid hsl(217 91% 60%);
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.1);
+    @apply rounded-xl p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200;
   }
-
   .page-header {
     @apply flex items-center justify-between mb-6;
   }
-
   .page-title {
     @apply text-2xl font-bold text-foreground tracking-tight;
   }
 
+  /* ── Badges ──────────────────────────────────── */
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
   }
 
-  .data-table {
-    @apply w-full text-sm;
-  }
+  /* ── Tables ──────────────────────────────────── */
+  .data-table { @apply w-full text-sm; }
   .data-table th {
     @apply text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 border-b;
   }
-  .data-table td {
-    @apply px-4 py-3 border-b border-border/50;
-  }
-  .data-table tr:hover td {
-    @apply bg-muted/40;
-  }
+  .data-table td { @apply px-4 py-3 border-b border-border/50; }
+  .data-table tr:hover td { @apply bg-muted/40; }
 
-  .form-label {
-    @apply block text-sm font-medium text-foreground mb-1.5;
-  }
+  /* ── Forms ───────────────────────────────────── */
+  .form-label { @apply block text-sm font-medium text-foreground mb-1.5; }
   .form-input {
     @apply w-full rounded-lg border border-input bg-background px-3 py-2 text-sm
            placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring
            transition-colors duration-150;
   }
-  .form-textarea {
-    @apply form-input resize-none;
-  }
+  .form-textarea { @apply form-input resize-none; }
 
+  /* ── Buttons ─────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+    @apply inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg
            transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm;
+    @apply btn bg-primary text-primary-foreground hover:brightness-110 shadow-sm;
   }
   .btn-secondary {
     @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border;
@@ -130,38 +143,38 @@
   .btn-destructive {
     @apply btn bg-destructive text-destructive-foreground hover:bg-destructive/90;
   }
-  .btn-sm {
-    @apply px-3 py-1.5 text-xs;
-  }
-  .btn-icon {
-    @apply btn p-2;
-  }
+  .btn-sm  { @apply px-3 py-1.5 text-xs; }
+  .btn-icon { @apply btn p-2; }
 
+  /* ── Card ────────────────────────────────── */
   .card {
-    @apply bg-card rounded-xl border shadow-sm;
+    /* High-opacity white — clearly stands out from the blue gradient panel */
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(219, 234, 254, 0.8);
+    @apply rounded-xl shadow-sm;
   }
   .card-header {
     @apply px-6 py-4 border-b flex items-center justify-between;
+    border-color: rgba(219, 234, 254, 0.6);
   }
-  .card-body {
-    @apply p-6;
-  }
-  .card-title {
-    @apply text-base font-semibold text-foreground;
-  }
+  .card-body  { @apply p-6; }
+  .card-title { @apply text-base font-semibold text-foreground; }
 }
 
 @layer utilities {
   .animate-fade-in {
-    animation: fade-in 0.3s ease-out;
+    animation: fade-in 0.25s ease-out;
   }
   @keyframes fade-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0);   }
   }
 
+  /* ── Brand Gradients ─────────────────────────── */
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(235 85% 60%) 0%, hsl(265 80% 65%) 100%);
+    background: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(230 85% 65%) 100%);
   }
   .gradient-success {
     background: linear-gradient(135deg, hsl(142 76% 45%) 0%, hsl(162 72% 42%) 100%);
@@ -173,6 +186,7 @@
     background: linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(20 90% 58%) 100%);
   }
   .gradient-info {
-    background: linear-gradient(135deg, hsl(200 90% 55%) 0%, hsl(235 85% 60%) 100%);
+    background: linear-gradient(135deg, hsl(200 90% 50%) 0%, hsl(222 47% 40%) 100%);
   }
 }
+

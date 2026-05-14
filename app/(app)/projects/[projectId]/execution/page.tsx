@@ -433,7 +433,7 @@ export default function ExecutionPage() {
                         <td>
                           {can(store.currentUser?.global_role, 'editCycle') ? (
                             <select
-                              className="form-input text-xs py-1 h-8 bg-transparent hover:bg-muted border-transparent hover:border-border cursor-pointer transition-colors w-36"
+                              className="text-xs p-1 rounded border bg-card hover:bg-muted cursor-pointer transition-colors w-36 outline-none"
                               value={item.assigned_to || ''}
                               onChange={(e) => updateAssignee(item.id, e.target.value)}
                             >

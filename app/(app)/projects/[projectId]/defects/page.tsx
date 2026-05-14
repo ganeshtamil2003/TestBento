@@ -213,28 +213,28 @@ export default function DefectsPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card p-4 flex items-center gap-4">
+        <div className="stat-card flex items-center gap-4">
           <div className="p-3 bg-red-100 text-red-600 rounded-lg"><AlertCircle className="w-6 h-6" /></div>
           <div>
             <div className="text-2xl font-bold">{totalCriticalHigh}</div>
             <div className="text-xs text-muted-foreground uppercase font-semibold">Active Critical/High</div>
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-4">
+        <div className="stat-card flex items-center gap-4">
           <div className="p-3 bg-slate-100 text-slate-600 rounded-lg"><CircleDashed className="w-6 h-6" /></div>
           <div>
             <div className="text-2xl font-bold">{totalOpen}</div>
             <div className="text-xs text-muted-foreground uppercase font-semibold">Open Defects</div>
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-4">
+        <div className="stat-card flex items-center gap-4">
           <div className="p-3 bg-blue-100 text-blue-600 rounded-lg"><Bug className="w-6 h-6" /></div>
           <div>
             <div className="text-2xl font-bold">{totalInProgress}</div>
             <div className="text-xs text-muted-foreground uppercase font-semibold">In Progress</div>
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-4">
+        <div className="stat-card flex items-center gap-4">
           <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg"><CheckCircle2 className="w-6 h-6" /></div>
           <div>
             <div className="text-2xl font-bold">{totalResolved}</div>
@@ -344,7 +344,7 @@ export default function DefectsPage() {
                   <td>
                     {canAssign ? (
                       <select
-                        className="text-xs p-1 rounded border bg-transparent"
+                        className="text-xs p-1 rounded border bg-card outline-none cursor-pointer"
                         value={defect.assigned_to || ''}
                         onChange={(e) => handleAssigneeChange(defect.id, e.target.value)}
                         disabled={isUpdating === defect.id}

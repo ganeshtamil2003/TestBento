@@ -41,7 +41,7 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="w-64 flex flex-col h-full" style={{ background: 'hsl(var(--sidebar))' }}>
+    <aside className="w-60 flex flex-col h-full rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'hsl(var(--sidebar))', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
         <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 bg-black">
