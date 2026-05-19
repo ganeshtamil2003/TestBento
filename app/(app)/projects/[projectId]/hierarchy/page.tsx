@@ -198,7 +198,7 @@ export default function HierarchyPage() {
                               <TestTube2 className="w-2.5 h-2.5" />{tcCount} TCs
                             </span>
                             
-                            {canCreate && (
+                            {canCreate ? (
                               <div className="flex items-center gap-1 ml-2 border border-border/50 rounded bg-background px-1.5 py-0.5" onClick={e => e.stopPropagation()}>
                                 <User className="w-3 h-3 text-muted-foreground" />
                                 <select 
@@ -214,6 +214,15 @@ export default function HierarchyPage() {
                                   ))}
                                 </select>
                               </div>
+                            ) : (
+                              story.assignee_id && (
+                                <div className="flex items-center gap-1 ml-2 border border-border/50 rounded bg-background px-1.5 py-0.5 opacity-80 cursor-default" onClick={e => e.stopPropagation()}>
+                                  <User className="w-3 h-3 text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground max-w-[100px] truncate">
+                                    {qaEngineers.find(m => m.user_id === story.assignee_id)?.profile?.full_name || 'QA Engineer'}
+                                  </span>
+                                </div>
+                              )
                             )}
 
                             <Link href={`/projects/${projectId}/test-cases?story=${story.id}`} className="btn-secondary btn-sm text-xs ml-2">View TCs</Link>
