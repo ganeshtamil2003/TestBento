@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,59 +6,55 @@
 
 @layer base {
   :root {
-    /* ── Float & Glass Theme ─────────────────── */
-    --background:    220 30% 95%;
-    --foreground:    220 30% 9%;
+    /* ── Modern Minimalist SaaS Theme ───────── */
+    --background:    210 40% 98%;
+    --foreground:    222.2 84% 4.9%;
 
     --card:          0 0% 100%;
-    --card-foreground: 220 30% 9%;
+    --card-foreground: 222.2 84% 4.9%;
 
     --popover:       0 0% 100%;
-    --popover-foreground: 220 30% 9%;
+    --popover-foreground: 222.2 84% 4.9%;
 
-    /* Electric blue primary */
-    --primary:       217 91% 60%;
-    --primary-foreground: 0 0% 100%;
+    /* Deep Indigo primary */
+    --primary:       243 75% 59%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary:     220 15% 92%;
-    --secondary-foreground: 220 30% 12%;
+    --secondary:     210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted:         220 15% 92%;
-    --muted-foreground: 220 12% 46%;
+    --muted:         210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    /* Light blue tint for hover backgrounds */
-    --accent:        217 91% 94%;
-    --accent-foreground: 217 91% 35%;
+    --accent:        210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
 
-    --destructive:   0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive:   0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border:        220 18% 87%;
-    --input:         220 18% 87%;
-    --ring:          217 91% 60%;
-    --radius:        0.75rem;
+    --border:        214.3 31.8% 91.4%;
+    --input:         214.3 31.8% 91.4%;
+    --ring:          243 75% 59%;
+    --radius:        0.5rem;
 
-    /* ── Sidebar: Deep Navy ────────────────── */
-    --sidebar:       228 55% 8%;
-    --sidebar-foreground:   220 18% 65%;
-    --sidebar-border:       228 55% 13%;
-    --sidebar-accent:       228 55% 14%;
-    --sidebar-accent-foreground: 0 0% 100%;
+    /* ── Sidebar: Deep Slate ────────────────── */
+    --sidebar:       222.2 84% 4.9%;
+    --sidebar-foreground:   215 20.2% 65.1%;
+    --sidebar-border:       217.2 32.6% 17.5%;
+    --sidebar-accent:       217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
 
-    /* Blue glow for the active sidebar left-border */
-    --sidebar-active-glow: 217 91% 65%;
+    /* Indigo glow for the active sidebar left-border */
+    --sidebar-active-glow: 243 75% 59%;
   }
 
   * { @apply border-border; }
 
   body {
-    @apply text-foreground;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    @apply text-foreground bg-background;
+    font-family: 'Inter', system-ui, sans-serif;
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
-    /* Rich vivid gradient — the core visual identity of this theme */
-    background: linear-gradient(135deg, #8EB8F7 0%, #A8B8FF 30%, #8AC4F5 60%, #A0BCF8 100%);
-    background-attachment: fixed;
   }
 
   *:focus-visible {
@@ -87,14 +83,7 @@
 
   /* ── Cards & Layout ───────────────────────── */
   .stat-card {
-    /* Crisp white card with a blue left-accent stripe — consistent on all screens */
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(147, 197, 253, 0.5);
-    border-left: 3px solid hsl(217 91% 60%);
-    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.1);
-    @apply rounded-xl p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200;
+    @apply bg-card text-card-foreground border border-border rounded-xl p-5 shadow-sm hover:shadow hover:-translate-y-0.5 transition-all duration-200;
   }
   .page-header {
     @apply flex items-center justify-between mb-6;
@@ -148,16 +137,10 @@
 
   /* ── Card ────────────────────────────────── */
   .card {
-    /* High-opacity white — clearly stands out from the blue gradient panel */
-    background: rgba(255, 255, 255, 0.90);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(219, 234, 254, 0.8);
-    @apply rounded-xl shadow-sm;
+    @apply bg-card text-card-foreground border border-border rounded-xl shadow-sm;
   }
   .card-header {
-    @apply px-6 py-4 border-b flex items-center justify-between;
-    border-color: rgba(219, 234, 254, 0.6);
+    @apply px-6 py-4 border-b border-border flex items-center justify-between;
   }
   .card-body  { @apply p-6; }
   .card-title { @apply text-base font-semibold text-foreground; }
