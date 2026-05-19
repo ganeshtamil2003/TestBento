@@ -53,6 +53,7 @@ CREATE TABLE user_stories (
   title TEXT NOT NULL,
   description TEXT,
   acceptance_criteria TEXT,
+  assignee_id UUID REFERENCES profiles(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

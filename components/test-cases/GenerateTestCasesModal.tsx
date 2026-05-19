@@ -35,6 +35,10 @@ export default function GenerateTestCasesModal({ stories, initialStoryId, onClos
 
   const supabase = createClient()
 
+  const allowedStories = store.currentUser.global_role === 'QA_ENGINEER' 
+    ? stories.filter(s => s.assignee_id === store.currentUser.id) 
+    : stories
+
   // Pre-fill acceptance criteria if it changes and we haven't typed manually
   const handleStoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const s_id = e.target.value
@@ -144,8 +148,11 @@ export default function GenerateTestCasesModal({ stories, initialStoryId, onClos
                 <label className="form-label">Context / User Story *</label>
                 <select className="form-input" value={form.story_id} onChange={handleStoryChange} required>
                   <option value="">Select a user story</option>
-                  {stories.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  {allowedStories.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
                 </select>
+                {store.currentUser.global_role === 'QA_ENGINEER' && allowedStories.length === 0 && (
+                  <div className="text-xs text-destructive mt-1">You are not assigned to any user stories.</div>
+                )}
               </div>
               <div>
                 <label className="form-label">Requirement Description *</label>

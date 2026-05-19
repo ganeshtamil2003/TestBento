@@ -82,9 +82,11 @@ export interface UserStory {
   title: string
   description?: string
   acceptance_criteria?: string
+  assignee_id?: string
   created_at: string
   updated_at: string
   _counts?: { test_cases: number }
+  assignee?: Profile
 }
 
 export interface TestStep {
