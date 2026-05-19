@@ -39,6 +39,10 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
   const [isGeneratingData, setIsGeneratingData] = useState(false)
   const supabase = createClient()
 
+  const allowedStories = store.currentUser.global_role === 'QA_ENGINEER' 
+    ? stories.filter(s => s.assignee_id === store.currentUser.id) 
+    : stories
+
   function addStep() {
     setSteps(prev => [...prev, { step_number: prev.length + 1, action: '', test_data: '', expected_result: '' }])
   }
@@ -173,8 +177,11 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
               <label className="form-label">User Story *</label>
               <select className="form-input" value={form.story_id} onChange={e => setForm(f => ({ ...f, story_id: e.target.value }))} required>
                 <option value="">Select story</option>
-                {stories.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                {allowedStories.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
               </select>
+              {store.currentUser.global_role === 'QA_ENGINEER' && allowedStories.length === 0 && (
+                <div className="text-xs text-destructive mt-1">You are not assigned to any user stories.</div>
+              )}
             </div>
             <div>
               <label className="form-label">Priority</label>

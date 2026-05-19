@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2, FileText, AlertTriangle } from 'lucide-react'
+import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2, FileText, AlertTriangle, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import type { Epic, Feature, UserStory } from '@/types'
@@ -15,6 +15,7 @@ export default function HierarchyPage() {
   const project = store.projects.find(p => p.id === projectId)
   const epics = store.epics.filter(e => e.project_id === projectId)
   const currentUser = store.currentUser
+  const qaEngineers = store.projectMembers.filter(m => m.project_id === projectId && m.role === 'QA_ENGINEER')
 
   const supabase = createClient()
 
@@ -70,6 +71,23 @@ export default function HierarchyPage() {
       if (type === 'epics') store.deleteEpic(id)
       if (type === 'features') store.deleteFeature(id)
       if (type === 'user_stories') store.deleteUserStory(id)
+    }
+  }
+
+  async function handleAssignStory(storyId: string, assigneeId: string) {
+    const { error } = await supabase.from('user_stories').update({ assignee_id: assigneeId || null }).eq('id', storyId)
+    if (!error) {
+      store.updateUserStory(storyId, { assignee_id: assigneeId || undefined })
+      if (assigneeId) {
+        const story = store.userStories.find(s => s.id === storyId)
+        const { data: nData } = await supabase.from('notifications').insert({
+          user_id: assigneeId,
+          title: 'New Story Assignment',
+          message: `You have been assigned to write test cases for: ${story?.title}`,
+          link: `/projects/${projectId}/test-cases?story=${storyId}`
+        }).select().single()
+        if (nData) store.addNotification(nData)
+      }
     }
   }
 
@@ -179,7 +197,26 @@ export default function HierarchyPage() {
                             <span className="badge bg-green-100 text-green-700 text-xs flex items-center gap-1">
                               <TestTube2 className="w-2.5 h-2.5" />{tcCount} TCs
                             </span>
-                            <Link href={`/projects/${projectId}/test-cases?story=${story.id}`} className="btn-secondary btn-sm text-xs">View TCs</Link>
+                            
+                            {canCreate && (
+                              <div className="flex items-center gap-1 ml-2 border border-border/50 rounded bg-background px-1.5 py-0.5" onClick={e => e.stopPropagation()}>
+                                <User className="w-3 h-3 text-muted-foreground" />
+                                <select 
+                                  className="bg-transparent text-xs text-muted-foreground focus:outline-none appearance-none cursor-pointer max-w-[100px] truncate"
+                                  value={story.assignee_id || ''}
+                                  onChange={(e) => handleAssignStory(story.id, e.target.value)}
+                                >
+                                  <option value="">Unassigned</option>
+                                  {qaEngineers.map(member => (
+                                    <option key={member.user_id} value={member.user_id}>
+                                      {member.profile?.full_name || 'QA Engineer'}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            <Link href={`/projects/${projectId}/test-cases?story=${story.id}`} className="btn-secondary btn-sm text-xs ml-2">View TCs</Link>
                             {canDelete && (
                               <button className="btn-ghost btn-sm btn-icon p-1 text-destructive/70 hover:text-destructive" onClick={() => setDeletePrompt({ type: 'user_stories', id: story.id, name: story.title })}>
                                 <Trash2 className="w-3 h-3" />
