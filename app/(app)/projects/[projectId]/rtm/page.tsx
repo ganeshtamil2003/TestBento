@@ -34,7 +34,12 @@ export default function RTMPage() {
   }
 
   const covered = stories.filter(s => testCases.some(tc => tc.story_id === s.id)).length
-  const coveragePct = stories.length > 0 ? Math.round((covered / stories.length) * 100) : 0
+  const totalCoverageSum = stories.reduce((sum, story) => {
+    const storyTCs = testCases.filter(tc => tc.story_id === story.id)
+    const approved = storyTCs.filter(tc => tc.status === 'APPROVED').length
+    return sum + (storyTCs.length > 0 ? (approved / storyTCs.length) * 100 : 0)
+  }, 0)
+  const coveragePct = stories.length > 0 ? Math.round(totalCoverageSum / stories.length) : 0
 
   if (!project) return <div className="p-8 text-muted-foreground">Project not found.</div>
 
