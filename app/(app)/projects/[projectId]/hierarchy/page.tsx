@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2, FileText, AlertTriangle, User } from 'lucide-react'
+import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube2, Trash2, FileText, AlertTriangle, User, Download, Upload, FileSpreadsheet } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import type { Epic, Feature, UserStory } from '@/types'
@@ -26,6 +27,9 @@ export default function HierarchyPage() {
   const [form, setForm] = useState({ title: '', description: '', acceptance_criteria: '' })
   const [deletePrompt, setDeletePrompt] = useState<{ type: 'epics'|'features'|'user_stories', id: string, name: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [previewData, setPreviewData] = useState<any[] | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function toggleEpic(id: string) {
     setExpandedEpics(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
@@ -91,6 +95,128 @@ export default function HierarchyPage() {
     }
   }
 
+  function handleDownloadTemplate() {
+    const ws = XLSX.utils.json_to_sheet([{
+      'Epic Title': 'Authentication',
+      'Epic Description': 'All features related to user auth',
+      'Feature Title': 'Login',
+      'Feature Description': 'Login functionality',
+      'User Story Title': 'User can login with email',
+      'Story Description': 'Allows users to access their accounts',
+      'Acceptance Criteria': 'Given I am on the login page\nWhen I enter valid credentials\nThen I am logged in'
+    }])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Template')
+    XLSX.writeFile(wb, 'Hierarchy_Template.xlsx')
+  }
+
+  function handleExport() {
+    const data = []
+    for (const epic of epics) {
+      data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': '', 'Feature Description': '', 'User Story Title': '', 'Story Description': '', 'Acceptance Criteria': '' })
+      const features = store.features.filter(f => f.epic_id === epic.id)
+      for (const feature of features) {
+        data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': feature.title, 'Feature Description': feature.description || '', 'User Story Title': '', 'Story Description': '', 'Acceptance Criteria': '' })
+        const stories = store.userStories.filter(s => s.feature_id === feature.id)
+        for (const story of stories) {
+          data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': feature.title, 'Feature Description': feature.description || '', 'User Story Title': story.title, 'Story Description': story.description || '', 'Acceptance Criteria': story.acceptance_criteria || '' })
+        }
+      }
+    }
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Hierarchy')
+    XLSX.writeFile(wb, `${project?.name}_Hierarchy.xlsx`)
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const data = await file.arrayBuffer()
+      const wb = XLSX.read(data)
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows: any[] = XLSX.utils.sheet_to_json(ws)
+      setPreviewData(rows)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  async function handleConfirmImport() {
+    if (!previewData) return
+    setIsUploading(true)
+    try {
+      let currentEpicId: string | null = null
+      let currentEpicTitle: string | null = null
+      let currentFeatureId: string | null = null
+      let currentFeatureTitle: string | null = null
+
+      const localEpics = [...store.epics]
+      const localFeatures = [...store.features]
+      const localStories = [...store.userStories]
+
+      for (const row of previewData) {
+        const eTitle = row['Epic Title']?.toString().trim()
+        const eDesc = row['Epic Description']?.toString() || ''
+        const fTitle = row['Feature Title']?.toString().trim()
+        const fDesc = row['Feature Description']?.toString() || ''
+        const sTitle = row['User Story Title']?.toString().trim()
+        const sDesc = row['Story Description']?.toString() || ''
+        const ac = row['Acceptance Criteria']?.toString() || ''
+
+        if (eTitle && eTitle !== currentEpicTitle) {
+          let epic = localEpics.find(e => e.project_id === projectId && e.title.toLowerCase() === eTitle.toLowerCase())
+          if (!epic) {
+            const { data: newEpic, error } = await supabase.from('epics').insert({ project_id: projectId, title: eTitle, description: eDesc }).select().single()
+            if (!error && newEpic) {
+              epic = { ...newEpic, _counts: { features: 0 } } as Epic
+              store.addEpic(epic)
+              localEpics.push(epic)
+            }
+          }
+          currentEpicId = epic?.id || null
+          currentEpicTitle = epic?.title || null
+          currentFeatureId = null
+          currentFeatureTitle = null
+        }
+
+        if (fTitle && currentEpicId && fTitle !== currentFeatureTitle) {
+          let feature = localFeatures.find(f => f.epic_id === currentEpicId && f.title.toLowerCase() === fTitle.toLowerCase())
+          if (!feature) {
+             const { data: newFeature, error } = await supabase.from('features').insert({ epic_id: currentEpicId, title: fTitle, description: fDesc }).select().single()
+             if (!error && newFeature) {
+               feature = { ...newFeature, _counts: { user_stories: 0 } } as Feature
+               store.addFeature(feature)
+               localFeatures.push(feature)
+             }
+          }
+          currentFeatureId = feature?.id || null
+          currentFeatureTitle = feature?.title || null
+        }
+
+        if (sTitle && currentFeatureId) {
+          let story = localStories.find(s => s.feature_id === currentFeatureId && s.title.toLowerCase() === sTitle.toLowerCase())
+          if (!story) {
+            const { data: newStory, error } = await supabase.from('user_stories').insert({ feature_id: currentFeatureId, title: sTitle, description: sDesc, acceptance_criteria: ac }).select().single()
+            if (!error && newStory) {
+              const uStory = { ...newStory, _counts: { test_cases: 0 } } as UserStory
+              store.addUserStory(uStory)
+              localStories.push(uStory)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsUploading(false)
+      setPreviewData(null)
+    }
+  }
+
   if (!project) return <div className="text-muted-foreground p-8">Project not found.</div>
 
   const canCreate = can(currentUser?.global_role, 'createHierarchy')
@@ -108,9 +234,22 @@ export default function HierarchyPage() {
           <h1 className="page-title">Hierarchy</h1>
         </div>
         {canCreate && (
-          <button className="btn-primary" onClick={() => setModal({ type: 'epic' })}>
-            <Plus className="w-4 h-4 mr-2" /> Add Epic
-          </button>
+          <div className="flex items-center gap-2">
+            <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx,.xls" onChange={handleImport} />
+            <button className="btn-secondary text-xs px-2.5" onClick={handleDownloadTemplate}>
+              <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Template
+            </button>
+            <button className="btn-secondary text-xs px-2.5" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+              {isUploading ? <span className="animate-spin mr-1.5 border-2 border-current border-t-transparent rounded-full w-3.5 h-3.5" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+              Import
+            </button>
+            <button className="btn-secondary text-xs px-2.5" onClick={handleExport}>
+              <Download className="w-3.5 h-3.5 mr-1.5" /> Export
+            </button>
+            <button className="btn-primary" onClick={() => setModal({ type: 'epic' })}>
+              <Plus className="w-4 h-4 mr-2" /> Add Epic
+            </button>
+          </div>
         )}
       </div>
 
@@ -316,6 +455,63 @@ export default function HierarchyPage() {
                 }}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={() => !isUploading && setPreviewData(null)}>
+          <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-7xl mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-4">Preview Import Data</h2>
+            <div className="overflow-auto flex-1 border border-border/50 rounded-lg">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-muted/50 sticky top-0 backdrop-blur-md">
+                  <tr>
+                    <th className="px-4 py-2.5 border-b font-medium text-muted-foreground">Epic</th>
+                    <th className="px-4 py-2.5 border-b font-medium text-muted-foreground">Epic Desc</th>
+                    <th className="px-4 py-2.5 border-b font-medium text-muted-foreground">Feature</th>
+                    <th className="px-4 py-2.5 border-b font-medium text-muted-foreground">Feature Desc</th>
+                    <th className="px-4 py-2.5 border-b font-medium text-muted-foreground">User Story</th>
+                    <th className="px-4 py-2.5 border-b font-medium text-muted-foreground">Story Desc</th>
+                    <th className="px-4 py-2.5 border-b font-medium text-muted-foreground">Acceptance Criteria</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewData.slice(0, 50).map((row, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                      <td className="px-4 py-3 align-top font-medium min-w-[120px]">{row['Epic Title'] || ''}</td>
+                      <td className="px-4 py-3 align-top text-muted-foreground min-w-[150px] whitespace-pre-wrap">{row['Epic Description'] || ''}</td>
+                      <td className="px-4 py-3 align-top min-w-[120px]">{row['Feature Title'] || ''}</td>
+                      <td className="px-4 py-3 align-top text-muted-foreground min-w-[150px] whitespace-pre-wrap">{row['Feature Description'] || ''}</td>
+                      <td className="px-4 py-3 align-top min-w-[120px]">{row['User Story Title'] || ''}</td>
+                      <td className="px-4 py-3 align-top text-muted-foreground min-w-[150px] whitespace-pre-wrap">{row['Story Description'] || ''}</td>
+                      <td className="px-4 py-3 align-top text-muted-foreground min-w-[200px] whitespace-pre-wrap">{row['Acceptance Criteria'] || ''}</td>
+                    </tr>
+                  ))}
+                  {previewData.length > 50 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-3 text-center text-xs text-muted-foreground bg-muted/10">
+                        ... and {previewData.length - 50} more rows
+                      </td>
+                    </tr>
+                  )}
+                  {previewData.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                        No valid rows found in the uploaded file.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-3 pt-5 justify-end">
+              <button className="btn-secondary" onClick={() => setPreviewData(null)} disabled={isUploading}>Cancel</button>
+              <button className="btn-primary" onClick={handleConfirmImport} disabled={isUploading || previewData.length === 0}>
+                {isUploading ? <span className="animate-spin mr-2 border-2 border-current border-t-transparent rounded-full w-4 h-4" /> : null}
+                {isUploading ? 'Importing...' : `Confirm Import (${previewData.length} rows)`}
               </button>
             </div>
           </div>

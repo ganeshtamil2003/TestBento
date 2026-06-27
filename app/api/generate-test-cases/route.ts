@@ -56,7 +56,7 @@ Your output MUST be a strict JSON array of test cases. Each test case MUST follo
   }
 ]
 
-Ensure that the output is exactly a valid JSON array and adheres to the types strictly. Priority should be one of "HIGH", "MEDIUM", "LOW". Automation status should be one of "MANUAL", "AUTOMATED", "SEMI_AUTOMATED".
+Ensure that the output is exactly a valid JSON array and adheres to the types strictly. Priority should be one of "HIGH", "MEDIUM", "LOW". Execution type should be one of "MANUAL", "AUTOMATED", "SEMI_AUTOMATED".
 `;
 
 

@@ -4,12 +4,13 @@ import { useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { Plus, Download, Upload, Search, ChevronRight, Trash2, Edit2, Eye, FileSpreadsheet, Sparkles } from 'lucide-react'
+import { Plus, Download, Upload, Search, ChevronRight, Trash2, Edit2, Eye, FileSpreadsheet, Sparkles, ArrowRight } from 'lucide-react'
 import { STATUS_LABELS, STATUS_COLORS, cn } from '@/lib/utils'
 import { exportTestCasesToExcel, getImportTemplate, parseTestCasesExcel } from '@/lib/excel'
-import type { TestCase, TestStep } from '@/types'
+import type { TestCase, TestStep, ReviewCycle } from '@/types'
 import TestCaseModal from '@/components/test-cases/TestCaseModal'
 import GenerateTestCasesModal from '@/components/test-cases/GenerateTestCasesModal'
+import ViewTestCaseModal from '@/components/test-cases/ViewTestCaseModal'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
@@ -42,6 +43,9 @@ export default function TestCasesPage() {
 
   const [selectedTCIds, setSelectedTCIds] = useState<string[]>([])
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [targetProjectId, setTargetProjectId] = useState('')
+  const [targetStoryId, setTargetStoryId] = useState('')
 
   const stories = store.userStories.filter(s => storyIds.has(s.id))
 
@@ -61,6 +65,10 @@ export default function TestCasesPage() {
     try {
       const parsed = await parseTestCasesExcel(file)
       const importStoryId = selectedStory || [...storyIds][0]
+      const leads = store.profiles.filter(p => ['QA_LEAD', 'MANAGER'].includes(p.global_role))
+      const firstLead = leads[0]
+      const shouldReview = !!firstLead
+
       const newTCsPayload = parsed.map(p => ({
         story_id: importStoryId,
         title: p.title,
@@ -71,7 +79,7 @@ export default function TestCasesPage() {
         expected_result: p.expected_result,
         priority: p.priority,
         automation_status: p.automation_status,
-        status: 'DRAFT',
+        status: shouldReview ? 'IN_REVIEW' : 'DRAFT',
         created_by: currentUser.id,
       }))
       
@@ -79,6 +87,20 @@ export default function TestCasesPage() {
       
       if (!error && data) {
         store.addTestCases(data as TestCase[])
+
+        if (shouldReview) {
+          const rcPayload = data.map((d: any) => ({
+            test_case_id: d.id,
+            reviewer_id: firstLead.id,
+            assigned_by: currentUser.id,
+            status: 'PENDING'
+          }))
+          const { data: rcData, error: rcError } = await supabase.from('review_cycles').insert(rcPayload).select()
+          if (!rcError && rcData) {
+            rcData.forEach((rc: any) => store.addReviewCycle(rc as ReviewCycle))
+          }
+        }
+
         data.forEach((tc: any) => {
           logAudit(supabase, {
             projectId,
@@ -173,6 +195,33 @@ export default function TestCasesPage() {
     }
   }
 
+  async function handleBulkMove() {
+    if (selectedTCIds.length === 0 || isBulkUpdating || !targetStoryId) return
+    setIsBulkUpdating(true)
+    try {
+      const { error } = await supabase.from('test_cases').update({ story_id: targetStoryId }).in('id', selectedTCIds)
+      if (!error) {
+        selectedTCIds.forEach(id => store.updateTestCase(id, { story_id: targetStoryId }))
+        logAudit(supabase, {
+          projectId,
+          userId: currentUser.id,
+          action: 'UPDATE',
+          entityType: 'TEST_CASE',
+          entityId: selectedTCIds[0],
+          entityTitle: `Bulk moved ${selectedTCIds.length} test cases to story ${targetStoryId}`,
+        })
+        setShowMoveModal(false)
+        setTargetProjectId('')
+        setTargetStoryId('')
+      } else {
+        alert('Failed to move test cases.')
+      }
+    } finally {
+      setIsBulkUpdating(false)
+      setSelectedTCIds([])
+    }
+  }
+
   if (!project) return <div className="text-muted-foreground p-8">Project not found.</div>
 
   return (
@@ -236,7 +285,7 @@ export default function TestCasesPage() {
             {['HIGH','MEDIUM','LOW'].map(p => <option key={p} value={p}>{p}</option>)}
           </select>
           <select className="form-input w-40" value={autoFilter} onChange={e => setAutoFilter(e.target.value)}>
-            <option value="">All Automation</option>
+            <option value="">All Execution Types</option>
             {['AUTOMATED','MANUAL','SEMI_AUTOMATED'].map(a => <option key={a} value={a}>{STATUS_LABELS[a as keyof typeof STATUS_LABELS]}</option>)}
           </select>
         </div>
@@ -256,7 +305,7 @@ export default function TestCasesPage() {
                 <th>Story</th>
                 <th>Priority</th>
                 <th>Status</th>
-                <th>Automation</th>
+                <th>Execution Type</th>
                 <th>Steps</th>
                 <th className="text-right">Actions</th>
               </tr>
@@ -333,16 +382,21 @@ export default function TestCasesPage() {
             onChange={e => { if (e.target.value) handleBulkUpdate('automation_status', e.target.value) }}
             value=""
           >
-            <option value="" disabled>Set Automation...</option>
+            <option value="" disabled>Set Execution Type...</option>
             <option value="MANUAL">Manual</option>
             <option value="AUTOMATED">Automated</option>
             <option value="SEMI_AUTOMATED">Semi-Automated</option>
           </select>
 
           {can(currentUser?.global_role, 'deleteTestCase') && (
-            <button className="btn-ghost btn-sm text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 flex items-center px-2 py-1 rounded" onClick={handleBulkDelete}>
-              <Trash2 className="w-3.5 h-3.5" /> Delete All
-            </button>
+            <>
+              <button className="btn-ghost btn-sm text-primary hover:bg-primary/10 hover:text-primary gap-1 flex items-center px-2 py-1 rounded" onClick={() => setShowMoveModal(true)}>
+                <ArrowRight className="w-3.5 h-3.5" /> Move
+              </button>
+              <button className="btn-ghost btn-sm text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 flex items-center px-2 py-1 rounded" onClick={handleBulkDelete}>
+                <Trash2 className="w-3.5 h-3.5" /> Delete All
+              </button>
+            </>
           )}
         </div>
       )}
@@ -369,39 +423,50 @@ export default function TestCasesPage() {
 
       {/* View Modal */}
       {viewTC && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in p-4" onClick={() => setViewTC(null)}>
-          <div className="bg-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="card-header sticky top-0 bg-card z-10">
+        <ViewTestCaseModal viewTC={viewTC} onClose={() => setViewTC(null)} />
+      )}
+
+      {/* Move Test Cases Modal */}
+      {showMoveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={() => !isBulkUpdating && setShowMoveModal(false)}>
+          <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-4">Move Test Cases</h2>
+            <div className="space-y-4">
               <div>
-                <h2 className="card-title">{viewTC.title}</h2>
-                <div className="flex gap-2 mt-1">
-                  <span className={cn('badge', STATUS_COLORS[viewTC.status])}>{STATUS_LABELS[viewTC.status as keyof typeof STATUS_LABELS]}</span>
-                  <span className={cn('badge', STATUS_COLORS[viewTC.priority])}>{viewTC.priority}</span>
-                  <span className={cn('badge', STATUS_COLORS[viewTC.automation_status])}>{STATUS_LABELS[viewTC.automation_status as keyof typeof STATUS_LABELS]}</span>
-                </div>
-              </div>
-              <button className="btn-ghost btn-icon" onClick={() => setViewTC(null)}>✕</button>
-            </div>
-            <div className="card-body space-y-4">
-              {viewTC.description && <div><p className="form-label">Description</p><p className="text-sm text-muted-foreground">{viewTC.description}</p></div>}
-              {viewTC.preconditions && <div><p className="form-label">Preconditions</p><p className="text-sm text-muted-foreground">{viewTC.preconditions}</p></div>}
-              <div>
-                <p className="form-label mb-3">Test Steps</p>
-                <div className="space-y-2">
-                  {viewTC.steps.map(step => (
-                    <div key={step.step_number} className="flex gap-3 text-sm">
-                      <span className="w-8 h-7 rounded bg-primary/10 text-primary font-bold flex items-center justify-center text-xs flex-shrink-0">{step.step_number}</span>
-                      <div className="flex-1">
-                        <div className="font-medium text-foreground">{step.action}</div>
-                        {step.test_data && <div className="text-muted-foreground text-xs font-mono bg-muted/50 p-1 rounded inline-block mt-1">Data: {step.test_data}</div>}
-                        <div className="text-muted-foreground text-xs mt-1">Expected: {step.expected_result}</div>
-                      </div>
-                    </div>
+                <label className="form-label">Target Project</label>
+                <select className="form-input" value={targetProjectId} onChange={e => { setTargetProjectId(e.target.value); setTargetStoryId('') }}>
+                  <option value="">Select Project</option>
+                  {store.projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
-                </div>
+                </select>
               </div>
-              {viewTC.expected_result && <div><p className="form-label">Overall Expected Result</p><p className="text-sm text-muted-foreground">{viewTC.expected_result}</p></div>}
-              {viewTC.postconditions && <div><p className="form-label">Postconditions</p><p className="text-sm text-muted-foreground">{viewTC.postconditions}</p></div>}
+              
+              {targetProjectId && (
+                <div>
+                  <label className="form-label">Target Story</label>
+                  <select className="form-input" value={targetStoryId} onChange={e => setTargetStoryId(e.target.value)}>
+                    <option value="">Select Story</option>
+                    {store.userStories.filter(s => {
+                      const feature = store.features.find(f => f.id === s.feature_id)
+                      const epic = store.epics.find(e => e.id === feature?.epic_id)
+                      return epic?.project_id === targetProjectId
+                    }).map(s => (
+                      <option key={s.id} value={s.id}>{s.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 pt-6">
+              <button className="btn-secondary flex-1" onClick={() => setShowMoveModal(false)} disabled={isBulkUpdating}>Cancel</button>
+              <button 
+                className="btn-primary flex-1" 
+                onClick={handleBulkMove} 
+                disabled={isBulkUpdating || !targetStoryId}
+              >
+                {isBulkUpdating ? 'Moving...' : 'Confirm Move'}
+              </button>
             </div>
           </div>
         </div>

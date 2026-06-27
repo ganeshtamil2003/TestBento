@@ -4,12 +4,13 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { ChevronRight, UserCheck, MessageSquare, Plus, CheckCircle, XCircle, CheckSquare, Square } from 'lucide-react'
+import { ChevronRight, UserCheck, MessageSquare, Plus, CheckCircle, XCircle, CheckSquare, Square, Eye, Search } from 'lucide-react'
 import { STATUS_COLORS, STATUS_LABELS, cn, formatDateTime } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
 import { createNotification } from '@/lib/notifications'
-import type { ReviewCycle, ReviewComment, ReviewStatus } from '@/types'
+import type { ReviewCycle, ReviewComment, ReviewStatus, TestCase } from '@/types'
+import ViewTestCaseModal from '@/components/test-cases/ViewTestCaseModal'
 
 export default function ReviewsPage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -32,6 +33,10 @@ export default function ReviewsPage() {
   const [comment, setComment] = useState('')
   const [activeReview, setActiveReview] = useState<ReviewCycle | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [activeTab, setActiveTab] = useState<'submit' | 'pipeline'>('submit')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'ALL' | ReviewStatus>('ALL')
+  const [viewTC, setViewTC] = useState<TestCase | null>(null)
   const currentUser = store.currentUser
   const supabase = createClient()
 
@@ -42,6 +47,14 @@ export default function ReviewsPage() {
   const submittableTCs = myTCs.filter(tc =>
     (tc.status === 'DRAFT' || tc.status === 'REJECTED') && !reviews.some(rc => rc.test_case_id === tc.id && rc.status === 'PENDING')
   )
+
+  const filteredReviews = reviews.filter(rc => {
+    const tc = allProjectTCs.find(t => t.id === rc.test_case_id)
+    if (!tc) return false
+    const matchSearch = tc.title.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchStatus = statusFilter === 'ALL' || rc.status === statusFilter
+    return matchSearch && matchStatus
+  })
 
   const allSelected = submittableTCs.length > 0 && selectedTCIds.length === submittableTCs.length
   function toggleAll() {
@@ -169,8 +182,22 @@ export default function ReviewsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* ── Submit for Review Panel ── */}
+      <div className="flex border-b border-border/50 mb-4">
+        <button 
+          className={cn('px-4 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === 'submit' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}
+          onClick={() => setActiveTab('submit')}
+        >
+          Submit for Review
+        </button>
+        <button 
+          className={cn('px-4 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === 'pipeline' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}
+          onClick={() => setActiveTab('pipeline')}
+        >
+          Review Pipeline
+        </button>
+      </div>
+
+      {activeTab === 'submit' && (
         <div className="card">
           <div className="card-header">
             <h3 className="card-title flex items-center gap-2">
@@ -257,102 +284,139 @@ export default function ReviewsPage() {
             </button>
           </div>
         </div>
+      )}
 
-        {/* ── Status Pipeline ── */}
-        <div className="card">
-          <div className="card-header"><h3 className="card-title">Review Status</h3></div>
-          <div className="card-body">
-            <div className="flex items-center gap-2 text-xs font-medium mb-4 flex-wrap">
-              {['DRAFT', 'IN_REVIEW', 'APPROVED'].map((s, i) => (
-                <div key={s} className="flex items-center gap-2">
-                  <span className={cn('badge', STATUS_COLORS[s])}>{STATUS_LABELS[s as keyof typeof STATUS_LABELS]}</span>
-                  {i < 2 && <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+      {activeTab === 'pipeline' && (
+        <div className="space-y-5">
+          <div className="card">
+            <div className="card-header"><h3 className="card-title">Review Status</h3></div>
+            <div className="card-body">
+              <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                <div className="flex-1 relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    className="form-input pl-9"
+                    placeholder="Search reviews by title..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
                 </div>
-              ))}
-              <span className="text-muted-foreground">or</span>
-              <span className={cn('badge', STATUS_COLORS['REJECTED'])}>Rejected</span>
+                <select 
+                  className="form-input sm:w-48"
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value as any)}
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-medium mb-4 flex-wrap">
+                {['DRAFT', 'IN_REVIEW', 'APPROVED'].map((s, i) => (
+                  <div key={s} className="flex items-center gap-2">
+                    <span className={cn('badge', STATUS_COLORS[s])}>{STATUS_LABELS[s as keyof typeof STATUS_LABELS]}</span>
+                    {i < 2 && <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                  </div>
+                ))}
+                <span className="text-muted-foreground">or</span>
+                <span className={cn('badge', STATUS_COLORS['REJECTED'])}>Rejected</span>
+              </div>
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {filteredReviews.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">No reviews found.</p>}
+                {filteredReviews.map(rc => {
+                  const tc = allProjectTCs.find(t => t.id === rc.test_case_id)
+                  const author = store.profiles.find(p => p.id === tc?.created_by)
+                  const reviewer = store.profiles.find(p => p.id === rc.reviewer_id)
+                  return (
+                    <div
+                      key={rc.id}
+                      className={cn('flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-muted/50', activeReview?.id === rc.id ? 'bg-accent/40 border-primary/30' : '')}
+                      onClick={() => setActiveReview(rc)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{tc?.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          By: {author?.full_name || '—'} · Reviewer: {reviewer?.full_name || 'Unknown'}
+                        </div>
+                      </div>
+                      <button 
+                        className="btn-ghost btn-icon p-1.5"
+                        onClick={(e) => { e.stopPropagation(); tc && setViewTC(tc) }}
+                        title="View Test Case"
+                      >
+                        <Eye className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                      <span className={cn('badge flex-shrink-0', STATUS_COLORS[rc.status])}>{rc.status}</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {reviews.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">No reviews yet.</p>}
-              {reviews.map(rc => {
-                const tc = allProjectTCs.find(t => t.id === rc.test_case_id)
-                const author = store.profiles.find(p => p.id === tc?.created_by)
-                const reviewer = store.profiles.find(p => p.id === rc.reviewer_id)
-                return (
-                  <div
-                    key={rc.id}
-                    className={cn('flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-muted/50', activeReview?.id === rc.id ? 'bg-accent/40 border-primary/30' : '')}
-                    onClick={() => setActiveReview(rc)}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{tc?.title}</div>
-                      <div className="text-xs text-muted-foreground">
-                        By: {author?.full_name || '—'} · Reviewer: {reviewer?.full_name || 'Unknown'}
+          </div>
+
+          {/* ── Active Review Comment Thread ── */}
+          {activeReview && (
+            <div className="card animate-fade-in">
+              <div className="card-header">
+                <h3 className="card-title flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-primary" />
+                  Review: {allProjectTCs.find(t => t.id === activeReview.test_case_id)?.title}
+                </h3>
+                <div className="flex gap-2">
+                  {activeReview.status === 'PENDING' && (currentUser.id === activeReview.reviewer_id || currentUser.global_role === 'ADMIN') && (
+                    <>
+                      <button id="approve-btn" className="btn-primary btn-sm flex items-center gap-1" onClick={() => updateStatus(activeReview.id, 'APPROVED', activeReview.test_case_id)}>
+                        <CheckCircle className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button id="reject-btn" className="btn-destructive btn-sm flex items-center gap-1" onClick={() => updateStatus(activeReview.id, 'REJECTED', activeReview.test_case_id)}>
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    </>
+                  )}
+                  <span className={cn('badge', STATUS_COLORS[activeReview.status])}>{activeReview.status}</span>
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                  {(!activeReview.comments || activeReview.comments.length === 0) && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No comments yet.</p>
+                  )}
+                  {activeReview.comments?.map(c => (
+                    <div key={c.id} className={cn('flex gap-3', c.author_id === store.currentUser.id ? 'flex-row-reverse' : '')}>
+                      <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">{(c.author?.full_name || 'U').slice(0, 2).toUpperCase()}</span>
+                      </div>
+                      <div className={cn('max-w-xs', c.author_id === store.currentUser.id ? 'items-end' : '')}>
+                        <div className={cn('rounded-xl px-3 py-2 text-sm', c.author_id === store.currentUser.id ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm')}>
+                          {c.comment}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">{c.author?.full_name} · {formatDateTime(c.created_at)}</div>
                       </div>
                     </div>
-                    <span className={cn('badge flex-shrink-0', STATUS_COLORS[rc.status])}>{rc.status}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Active Review Comment Thread ── */}
-      {activeReview && (
-        <div className="card animate-fade-in">
-          <div className="card-header">
-            <h3 className="card-title flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-primary" />
-              Review: {allProjectTCs.find(t => t.id === activeReview.test_case_id)?.title}
-            </h3>
-            <div className="flex gap-2">
-              {activeReview.status === 'PENDING' && (currentUser.id === activeReview.reviewer_id || currentUser.global_role === 'ADMIN') && (
-                <>
-                  <button id="approve-btn" className="btn-primary btn-sm flex items-center gap-1" onClick={() => updateStatus(activeReview.id, 'APPROVED', activeReview.test_case_id)}>
-                    <CheckCircle className="w-3.5 h-3.5" /> Approve
-                  </button>
-                  <button id="reject-btn" className="btn-destructive btn-sm flex items-center gap-1" onClick={() => updateStatus(activeReview.id, 'REJECTED', activeReview.test_case_id)}>
-                    <XCircle className="w-3.5 h-3.5" /> Reject
-                  </button>
-                </>
-              )}
-              <span className={cn('badge', STATUS_COLORS[activeReview.status])}>{activeReview.status}</span>
-            </div>
-          </div>
-          <div className="card-body">
-            <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
-              {(!activeReview.comments || activeReview.comments.length === 0) && (
-                <p className="text-sm text-muted-foreground text-center py-4">No comments yet.</p>
-              )}
-              {activeReview.comments?.map(c => (
-                <div key={c.id} className={cn('flex gap-3', c.author_id === store.currentUser.id ? 'flex-row-reverse' : '')}>
-                  <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-xs font-bold">{(c.author?.full_name || 'U').slice(0, 2).toUpperCase()}</span>
-                  </div>
-                  <div className={cn('max-w-xs', c.author_id === store.currentUser.id ? 'items-end' : '')}>
-                    <div className={cn('rounded-xl px-3 py-2 text-sm', c.author_id === store.currentUser.id ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm')}>
-                      {c.comment}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">{c.author?.full_name} · {formatDateTime(c.created_at)}</div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+                <div className="flex gap-2">
+                  <input
+                    id="review-comment-input"
+                    className="form-input flex-1"
+                    placeholder="Add a comment..."
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addComment(activeReview.id) } }}
+                  />
+                  <button id="send-comment-btn" className="btn-primary" onClick={() => addComment(activeReview.id)}>Send</button>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <input
-                id="review-comment-input"
-                className="form-input flex-1"
-                placeholder="Add a comment..."
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addComment(activeReview.id) } }}
-              />
-              <button id="send-comment-btn" className="btn-primary" onClick={() => addComment(activeReview.id)}>Send</button>
-            </div>
-          </div>
+          )}
         </div>
+      )}
+
+      {viewTC && (
+        <ViewTestCaseModal viewTC={viewTC} onClose={() => setViewTC(null)} />
       )}
     </div>
   )

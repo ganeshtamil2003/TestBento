@@ -37,6 +37,8 @@ export default function ExecutionPage() {
   const [cycleForm, setCycleForm] = useState({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
   const [defectForm, setDefectForm] = useState({ title: '', severity: 'HIGH', description: '', jira_url: '' })
   const [selectedTCs, setSelectedTCs] = useState<string[]>([])
+  const [filterEpic, setFilterEpic] = useState<string>('')
+  const [filterStory, setFilterStory] = useState<string>('')
   // tcAssignees: map of tcId → userId (optional per-TC assignment)
   const [tcAssignees, setTcAssignees] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -181,6 +183,8 @@ export default function ExecutionPage() {
     } finally {
       setSelectedTCs([])
       setTcAssignees({})
+      setFilterEpic('')
+      setFilterStory('')
       setShowTCModal(false)
       setIsSubmitting(false)
     }
@@ -556,36 +560,75 @@ export default function ExecutionPage() {
       )}
 
       {/* Add TCs Modal */}
-      {showTCModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowTCModal(false)}>
-          <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold">Add Test Cases to Cycle</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Select test cases and optionally assign each one to a team member.</p>
-            </div>
+      {showTCModal && (() => {
+        const availableTCs = projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id))
+        const displayedTCs = availableTCs.filter(tc => {
+          if (!filterEpic && !filterStory) return true
+          const story = store.userStories.find(s => s.id === tc.story_id)
+          if (!story) return false
+          if (filterStory && story.id !== filterStory) return false
+          if (filterEpic) {
+            const feature = store.features.find(f => f.id === story.feature_id)
+            if (!feature || feature.epic_id !== filterEpic) return false
+          }
+          return true
+        })
 
-            {/* Select All row */}
-            {projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).length > 0 && (
-              <div className="flex items-center gap-3 px-3 py-2 border-b mb-1">
-                <input
-                  type="checkbox"
-                  className="accent-primary"
-                  checked={selectedTCs.length > 0 && selectedTCs.length === projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).length}
-                  onChange={e => {
-                    const all = projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).map(tc => tc.id)
-                    setSelectedTCs(e.target.checked ? all : [])
-                  }}
-                />
-                <span className="text-sm font-medium text-muted-foreground">Select All</span>
-                <span className="ml-auto text-xs text-muted-foreground">{selectedTCs.length} selected</span>
+        const projectEpics = store.epics.filter(e => e.project_id === projectId)
+        const availableStories = store.userStories.filter(s => {
+          const feature = store.features.find(f => f.id === s.feature_id)
+          if (!feature) return false
+          if (filterEpic) return feature.epic_id === filterEpic
+          return projectEpics.some(e => e.id === feature.epic_id)
+        })
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowTCModal(false); setFilterEpic(''); setFilterStory('') }}>
+            <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold">Add Test Cases to Cycle</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Select test cases and optionally assign each one to a team member.</p>
               </div>
-            )}
 
-            <div className="overflow-y-auto flex-1 space-y-1">
-              {projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">All test cases are already added to this cycle.</p>
+              {/* Filters */}
+              <div className="flex gap-3 mb-4">
+                <select className="form-input text-sm flex-1" value={filterEpic} onChange={e => { setFilterEpic(e.target.value); setFilterStory('') }}>
+                  <option value="">All Epics</option>
+                  {projectEpics.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                </select>
+                <select className="form-input text-sm flex-1" value={filterStory} onChange={e => setFilterStory(e.target.value)}>
+                  <option value="">All User Stories</option>
+                  {availableStories.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                </select>
+              </div>
+
+              {/* Select All row */}
+              {displayedTCs.length > 0 && (
+                <div className="flex items-center gap-3 px-3 py-2 border-b mb-1">
+                  <input
+                    type="checkbox"
+                    className="accent-primary"
+                    checked={selectedTCs.length > 0 && displayedTCs.every(tc => selectedTCs.includes(tc.id))}
+                    onChange={e => {
+                      const displayedIds = displayedTCs.map(tc => tc.id)
+                      if (e.target.checked) {
+                        const newSelection = new Set([...selectedTCs, ...displayedIds])
+                        setSelectedTCs(Array.from(newSelection))
+                      } else {
+                        setSelectedTCs(selectedTCs.filter(id => !displayedIds.includes(id)))
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium text-muted-foreground">Select All Filtered ({displayedTCs.length})</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{selectedTCs.length} total selected</span>
+                </div>
               )}
-              {projectTCs.filter(tc => tc.status === 'APPROVED' && !activeItems.some(ei => ei.test_case_id === tc.id)).map(tc => (
+
+              <div className="overflow-y-auto flex-1 space-y-1">
+                {displayedTCs.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">No test cases match the selected filters or all are already added.</p>
+                )}
+                {displayedTCs.map(tc => (
                 <div key={tc.id} className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors', selectedTCs.includes(tc.id) ? 'bg-accent/30' : 'hover:bg-muted/50')}>
                   <input
                     type="checkbox"
@@ -613,14 +656,14 @@ export default function ExecutionPage() {
               ))}
             </div>
             <div className="flex gap-3 mt-4 pt-3 border-t">
-              <button className="btn-secondary flex-1" onClick={() => { setShowTCModal(false); setSelectedTCs([]); setTcAssignees({}) }}>Cancel</button>
+              <button className="btn-secondary flex-1" onClick={() => { setShowTCModal(false); setSelectedTCs([]); setTcAssignees({}); setFilterEpic(''); setFilterStory('') }}>Cancel</button>
               <button className="btn-primary flex-1" onClick={addToCycle} disabled={selectedTCs.length === 0}>
                 Add {selectedTCs.length > 0 ? `${selectedTCs.length} Test Case${selectedTCs.length > 1 ? 's' : ''}` : ''}
               </button>
             </div>
           </div>
         </div>
-      )}
+      )})()}
 
       {/* Defect Modal */}
       {showDefectModal && (

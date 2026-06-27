@@ -243,7 +243,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="card">
-            <div className="card-header"><h3 className="card-title">Automation Coverage</h3></div>
+            <div className="card-header"><h3 className="card-title">Execution Type Coverage</h3></div>
             <div className="card-body">
               <div className="space-y-4">
                 {[
