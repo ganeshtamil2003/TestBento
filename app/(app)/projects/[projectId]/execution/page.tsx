@@ -11,6 +11,7 @@ import { can } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { toast } from 'sonner'
+import ViewTestCaseModal from '@/components/test-cases/ViewTestCaseModal'
 import type { ExecutionCycle, ExecutionItem, Defect } from '@/types'
 
 export default function ExecutionPage() {
@@ -34,7 +35,10 @@ export default function ExecutionPage() {
   const [editItem, setEditItem] = useState<{ id: string; assigned_to: string; notes: string } | null>(null)
   const [editCycleId, setEditCycleId] = useState<string | null>(null)
   const [deleteCyclePrompt, setDeleteCyclePrompt] = useState<string | null>(null)
-  const [cycleForm, setCycleForm] = useState({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+  const [cycleForm, setCycleForm] = useState<{
+    name: string, type: string, sprint_name: string, start_date: string, end_date: string,
+    carryForwardCycleId: string, carryForwardStatuses: Record<string, boolean>
+  }>({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '', carryForwardCycleId: '', carryForwardStatuses: { NOT_RUN: true, BLOCKED: false, FAIL: false } })
   const [defectForm, setDefectForm] = useState({ title: '', severity: 'HIGH', description: '', jira_url: '' })
   const [selectedTCs, setSelectedTCs] = useState<string[]>([])
   const [filterEpic, setFilterEpic] = useState<string>('')
@@ -75,7 +79,7 @@ export default function ExecutionPage() {
           store.updateExecutionCycle(editCycleId, data as ExecutionCycle)
           setShowCycleModal(false)
           setEditCycleId(null)
-          setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+          setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '', carryForwardCycleId: '', carryForwardStatuses: { NOT_RUN: true, BLOCKED: false, FAIL: false } })
         }
       } else {
         const { data, error } = await supabase.from('execution_cycles').insert({
@@ -89,10 +93,38 @@ export default function ExecutionPage() {
         }).select().single()
 
         if (!error && data) {
-          store.addExecutionCycle({ ...data, _counts: { total: 0, pass: 0, fail: 0, blocked: 0, not_run: 0 } } as ExecutionCycle)
-          setActiveCycle(data.id)
+          const newCycle = data as ExecutionCycle
+          store.addExecutionCycle({ ...newCycle, _counts: { total: 0, pass: 0, fail: 0, blocked: 0, not_run: 0 } } as ExecutionCycle)
+          setActiveCycle(newCycle.id)
+
+          // Handle Carry Forward
+          if (cycleForm.carryForwardCycleId) {
+            const oldItems = store.executionItems.filter(ei => ei.cycle_id === cycleForm.carryForwardCycleId)
+            const itemsToCarry = oldItems.filter(ei => cycleForm.carryForwardStatuses[ei.status])
+            
+            if (itemsToCarry.length > 0) {
+              const payload = itemsToCarry.map(item => ({
+                cycle_id: newCycle.id,
+                test_case_id: item.test_case_id,
+                assigned_to: item.assigned_to,
+                status: 'NOT_RUN', // Reset status when carrying forward
+                defects: []
+              }))
+              
+              const { data: insertedItems, error: itemsError } = await supabase.from('execution_items').insert(payload).select(`
+                *,
+                test_case:test_case_id(*),
+                assignee:assigned_to(*)
+              `)
+              
+              if (!itemsError && insertedItems) {
+                insertedItems.forEach(ei => store.addExecutionItem(ei as ExecutionItem))
+              }
+            }
+          }
+
           setShowCycleModal(false)
-          setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+          setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '', carryForwardCycleId: '', carryForwardStatuses: { NOT_RUN: true, BLOCKED: false, FAIL: false } })
         }
       }
     } catch(err) {
@@ -127,7 +159,9 @@ export default function ExecutionPage() {
       type: c.type,
       sprint_name: c.sprint_name || '',
       start_date: c.start_date || '',
-      end_date: c.end_date || ''
+      end_date: c.end_date || '',
+      carryForwardCycleId: '',
+      carryForwardStatuses: { NOT_RUN: true, BLOCKED: false, FAIL: false }
     })
     setEditCycleId(c.id)
     setShowCycleModal(true)
@@ -340,7 +374,7 @@ export default function ExecutionPage() {
         {can(store.currentUser?.global_role, 'createCycle') && (
           <button id="new-cycle-btn" className="btn-primary" onClick={() => {
             setEditCycleId(null)
-            setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' })
+            setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '', carryForwardCycleId: '', carryForwardStatuses: { NOT_RUN: true, BLOCKED: false, FAIL: false } })
             setShowCycleModal(true)
           }}>
             <Plus className="w-4 h-4" /> New Cycle
@@ -540,7 +574,7 @@ export default function ExecutionPage() {
 
       {/* Cycle Modal (Create/Edit) */}
       {showCycleModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowCycleModal(false); setEditCycleId(null); setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' }) }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowCycleModal(false); setEditCycleId(null); setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '', carryForwardCycleId: '', carryForwardStatuses: { NOT_RUN: true, BLOCKED: false, FAIL: false } }) }}>
           <div className="bg-card rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-semibold mb-4">{editCycleId ? 'Edit Execution Cycle' : 'Create Execution Cycle'}</h2>
             <form onSubmit={saveCycle} className="space-y-4">
@@ -553,7 +587,43 @@ export default function ExecutionPage() {
                 <div><label className="form-label">Start Date</label><input type="date" className="form-input" value={cycleForm.start_date} onChange={e => setCycleForm(f => ({...f, start_date: e.target.value}))} /></div>
                 <div><label className="form-label">End Date</label><input type="date" className="form-input" value={cycleForm.end_date} onChange={e => setCycleForm(f => ({...f, end_date: e.target.value}))} /></div>
               </div>
-              <div className="flex gap-3"><button type="button" className="btn-secondary flex-1" onClick={() => { setShowCycleModal(false); setEditCycleId(null); setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '' }) }}>Cancel</button><button type="submit" className="btn-primary flex-1">{editCycleId ? 'Save Changes' : 'Create'}</button></div>
+              
+              {!editCycleId && cycles.length > 0 && (
+                <div className="border-t pt-4 mt-2">
+                  <label className="form-label font-semibold text-primary mb-2">Carry Forward Test Cases</label>
+                  <p className="text-xs text-muted-foreground mb-3">Optionally import unexecuted test cases from a previous cycle.</p>
+                  <div>
+                    <label className="form-label text-xs">From Cycle</label>
+                    <select className="form-input text-sm" value={cycleForm.carryForwardCycleId} onChange={e => setCycleForm(f => ({...f, carryForwardCycleId: e.target.value}))}>
+                      <option value="">-- None --</option>
+                      {cycles.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  {cycleForm.carryForwardCycleId && (
+                    <div className="mt-3">
+                      <label className="form-label text-xs">Select Statuses to Carry Forward</label>
+                      <div className="flex gap-4 mt-1">
+                        {['NOT_RUN', 'BLOCKED', 'FAIL'].map(status => (
+                          <label key={status} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="accent-primary"
+                              checked={cycleForm.carryForwardStatuses[status]}
+                              onChange={e => setCycleForm(f => ({
+                                ...f, 
+                                carryForwardStatuses: { ...f.carryForwardStatuses, [status]: e.target.checked }
+                              }))}
+                            />
+                            {STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2"><button type="button" className="btn-secondary flex-1" onClick={() => { setShowCycleModal(false); setEditCycleId(null); setCycleForm({ name: '', type: 'SPRINT', sprint_name: '', start_date: '', end_date: '', carryForwardCycleId: '', carryForwardStatuses: { NOT_RUN: true, BLOCKED: false, FAIL: false } }) }}>Cancel</button><button type="submit" className="btn-primary flex-1">{editCycleId ? 'Save Changes' : 'Create'}</button></div>
             </form>
           </div>
         </div>
@@ -733,43 +803,7 @@ export default function ExecutionPage() {
 
       {/* View Test Case Details Modal */}
       {viewTC && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in p-4" onClick={() => setViewTC(null)}>
-          <div className="bg-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="card-header sticky top-0 bg-card z-10 flex items-center justify-between border-b px-6 py-4">
-              <div className="flex-1">
-                <h2 className="card-title text-base sm:text-lg">{viewTC.title}</h2>
-                <div className="flex gap-2 mt-1">
-                  <span className={cn('badge', STATUS_COLORS[viewTC.status as keyof typeof STATUS_COLORS] || 'bg-slate-100 text-slate-700')}>{STATUS_LABELS[viewTC.status as keyof typeof STATUS_LABELS] || viewTC.status}</span>
-                  <span className={cn('badge', STATUS_COLORS[viewTC.priority as keyof typeof STATUS_COLORS] || 'bg-slate-100 text-slate-700')}>{viewTC.priority}</span>
-                </div>
-              </div>
-              <button className="btn-ghost btn-icon h-8 w-8 text-xl flex-shrink-0" onClick={() => setViewTC(null)}>✕</button>
-            </div>
-            <div className="card-body space-y-5 p-6">
-              {viewTC.description && <div><p className="form-label text-xs font-semibold mb-1">Description</p><p className="text-sm text-foreground">{viewTC.description}</p></div>}
-              {viewTC.preconditions && <div><p className="form-label text-xs font-semibold mb-1">Preconditions</p><p className="text-sm text-foreground">{viewTC.preconditions}</p></div>}
-              {viewTC.steps && viewTC.steps.length > 0 && (
-                <div>
-                  <p className="form-label mb-3 text-xs font-semibold">Test Steps</p>
-                  <div className="space-y-3">
-                    {viewTC.steps.map((step: any) => (
-                      <div key={step.step_number} className="flex gap-3 text-sm p-3 border rounded-lg bg-background">
-                        <span className="w-6 h-6 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs flex-shrink-0">{step.step_number}</span>
-                        <div className="flex-1">
-                          <div className="font-medium text-foreground">{step.action}</div>
-                          {step.test_data && <div className="text-muted-foreground text-xs font-mono bg-muted/50 p-1.5 rounded inline-block mt-1.5 border">Data: {step.test_data}</div>}
-                          <div className="text-muted-foreground text-sm mt-1.5">Expected: {step.expected_result}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {viewTC.expected_result && <div><p className="form-label text-xs font-semibold mb-1">Overall Expected Result</p><p className="text-sm text-foreground">{viewTC.expected_result}</p></div>}
-              {viewTC.postconditions && <div><p className="form-label text-xs font-semibold mb-1">Postconditions</p><p className="text-sm text-foreground">{viewTC.postconditions}</p></div>}
-            </div>
-          </div>
-        </div>
+        <ViewTestCaseModal viewTC={viewTC} onClose={() => setViewTC(null)} />
       )}
 
       {/* View Defects Modal */}

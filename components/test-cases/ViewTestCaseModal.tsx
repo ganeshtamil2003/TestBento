@@ -1,7 +1,8 @@
 'use client'
 
-import { STATUS_COLORS, STATUS_LABELS, cn } from '@/lib/utils'
+import { STATUS_COLORS, STATUS_LABELS, cn, formatDateTime } from '@/lib/utils'
 import type { TestCase } from '@/types'
+import { useAppStore } from '@/store/appStore'
 
 interface Props {
   viewTC: TestCase
@@ -9,6 +10,11 @@ interface Props {
 }
 
 export default function ViewTestCaseModal({ viewTC, onClose }: Props) {
+  const store = useAppStore()
+  const history = store.executionItems
+    .filter(ei => ei.test_case_id === viewTC.id)
+    .sort((a,b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in p-4" onClick={onClose}>
       <div className="bg-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -63,6 +69,45 @@ export default function ViewTestCaseModal({ viewTC, onClose }: Props) {
               <p className="text-sm text-muted-foreground">{viewTC.postconditions}</p>
             </div>
           )}
+
+          {/* Execution History Section */}
+          <div className="border-t pt-4 mt-2">
+            <p className="form-label mb-3">Execution History</p>
+            {history.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">This test case has not been added to any execution cycles yet.</p>
+            ) : (
+              <div className="border rounded-lg overflow-hidden max-h-52 overflow-y-auto">
+                <table className="w-full text-left text-sm relative">
+                  <thead className="bg-muted/90 backdrop-blur-sm border-b sticky top-0 z-10 shadow-sm">
+                    <tr>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Cycle</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Status</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Executed By</th>
+                      <th className="px-4 py-2 font-medium text-muted-foreground">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {history.map(ei => {
+                      const cycle = store.executionCycles.find(c => c.id === ei.cycle_id)
+                      const executor = store.profiles.find(p => p.id === ei.executed_by)
+                      return (
+                        <tr key={ei.id} className="hover:bg-muted/30">
+                          <td className="px-4 py-2 font-medium">{cycle?.name || 'Unknown Cycle'}</td>
+                          <td className="px-4 py-2">
+                            <span className={cn('badge text-[10px] px-1.5 py-0.5', STATUS_COLORS[ei.status])}>
+                              {STATUS_LABELS[ei.status as keyof typeof STATUS_LABELS] || ei.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-muted-foreground">{executor?.full_name || '—'}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{ei.executed_at ? formatDateTime(ei.executed_at) : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
