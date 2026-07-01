@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Sparkles, CheckSquare, Square, ChevronDown, ChevronRight, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAppStore } from '@/store/appStore'
-import type { TestCase, UserStory, GeneratedTestCase } from '@/types'
+import type { TestCase, UserStory, GeneratedTestCase, ReviewCycle } from '@/types'
 import { STATUS_COLORS, STATUS_LABELS, cn } from '@/lib/utils'
 
 interface Props {
@@ -87,13 +87,17 @@ export default function GenerateTestCasesModal({ stories, initialStoryId, onClos
     if (!toSave.length || isSaving) return
     setIsSaving(true)
 
+    const leads = store.profiles.filter(p => ['QA_LEAD', 'MANAGER'].includes(p.global_role))
+    const firstLead = leads[0]
+    const shouldReview = !!firstLead
+
     const payload = toSave.map(tc => {
       // Omit `isSelected` for payload
       const { isSelected, ...rest } = tc
       return {
         ...rest,
         story_id: form.story_id,
-        status: 'DRAFT',
+        status: shouldReview ? 'IN_REVIEW' : 'DRAFT',
         created_by: store.currentUser.id,
       }
     })
@@ -103,6 +107,20 @@ export default function GenerateTestCasesModal({ stories, initialStoryId, onClos
       if (error) throw error
       if (data) {
         store.addTestCases(data as TestCase[])
+        
+        if (shouldReview) {
+          const rcPayload = data.map((d: any) => ({
+            test_case_id: d.id,
+            reviewer_id: firstLead.id,
+            assigned_by: store.currentUser.id,
+            status: 'PENDING'
+          }))
+          const { data: rcData, error: rcError } = await supabase.from('review_cycles').insert(rcPayload).select()
+          if (!rcError && rcData) {
+            rcData.forEach((rc: any) => store.addReviewCycle(rc as ReviewCycle))
+          }
+        }
+
         onClose()
       }
     } catch (err: any) {

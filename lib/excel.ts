@@ -15,7 +15,7 @@ export function exportTestCasesToExcel(testCases: TestCase[], filename = 'test_c
         'Step Expected': '',
         'Overall Expected Result': tc.expected_result || '',
         'Priority': tc.priority,
-        'Automation Status': tc.automation_status,
+        'Execution Type': tc.automation_status,
         'Status': tc.status,
       }]
     }
@@ -30,7 +30,7 @@ export function exportTestCasesToExcel(testCases: TestCase[], filename = 'test_c
       'Step Expected': step.expected_result,
       'Overall Expected Result': idx === 0 ? (tc.expected_result || '') : '',
       'Priority': idx === 0 ? tc.priority : '',
-      'Automation Status': idx === 0 ? tc.automation_status : '',
+      'Execution Type': idx === 0 ? tc.automation_status : '',
       'Status': idx === 0 ? tc.status : '',
     }))
   })
@@ -52,7 +52,7 @@ export function getImportTemplate() {
     'Step Expected': 'Login page is displayed',
     'Overall Expected Result': 'User is redirected to dashboard',
     'Priority': 'HIGH',
-    'Automation Status': 'MANUAL',
+    'Execution Type': 'MANUAL',
   }]
   const ws = XLSX.utils.json_to_sheet(template)
   const wb = XLSX.utils.book_new()
@@ -97,7 +97,7 @@ export async function parseTestCasesExcel(file: File): Promise<ParsedTestCase[]>
               postconditions: row['Postconditions'] || '',
               expected_result: row['Overall Expected Result'] || '',
               priority: ((['HIGH', 'MEDIUM', 'LOW'] as string[]).includes(row['Priority']) ? row['Priority'] : 'MEDIUM') as ParsedTestCase['priority'],
-              automation_status: ((['AUTOMATED', 'MANUAL', 'SEMI_AUTOMATED'] as string[]).includes(row['Automation Status']) ? row['Automation Status'] : 'MANUAL') as ParsedTestCase['automation_status'],
+              automation_status: ((['AUTOMATED', 'MANUAL', 'SEMI_AUTOMATED'] as string[]).includes(row['Execution Type']) ? row['Execution Type'] : 'MANUAL') as ParsedTestCase['automation_status'],
               steps: [],
             })
           }

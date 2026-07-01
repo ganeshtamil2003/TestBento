@@ -5,7 +5,7 @@ import { useAppStore } from '@/store/appStore'
 import { Plus, Trash2, Sparkles, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { logAudit } from '@/lib/audit'
-import type { TestCase, TestStep, UserStory } from '@/types'
+import type { TestCase, TestStep, UserStory, ReviewCycle } from '@/types'
 
 interface Props {
   projectId: string
@@ -133,8 +133,13 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
           })
         }
       } else {
+        const leads = store.profiles.filter(p => ['QA_LEAD', 'MANAGER'].includes(p.global_role))
+        const firstLead = leads[0]
+        const finalStatus = form.status === 'DRAFT' && firstLead ? 'IN_REVIEW' : form.status
+
         const { error, data } = await supabase.from('test_cases').insert({
           ...form,
+          status: finalStatus,
           steps: validSteps,
           created_by: store.currentUser.id,
           // Note: default attachments/parameters are handled via Postgres defaults or omitted here
@@ -142,6 +147,19 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
         
         if (!error && data) {
           store.addTestCase(data as TestCase)
+          
+          if (finalStatus === 'IN_REVIEW' && firstLead) {
+            const { data: rcData, error: rcError } = await supabase.from('review_cycles').insert({
+              test_case_id: data.id,
+              reviewer_id: firstLead.id,
+              assigned_by: store.currentUser.id,
+              status: 'PENDING'
+            }).select().single()
+            if (!rcError && rcData) {
+              store.addReviewCycle(rcData as ReviewCycle)
+            }
+          }
+
           logAudit(supabase, {
             projectId,
             userId: store.currentUser.id,
@@ -196,7 +214,7 @@ export default function TestCaseModal({ projectId, editTC, stories, initialStory
               </select>
             </div>
             <div>
-              <label className="form-label">Automation Status</label>
+              <label className="form-label">Execution Type</label>
               <select className="form-input" value={form.automation_status} onChange={e => setForm(f => ({ ...f, automation_status: e.target.value as TestCase['automation_status'] }))}>
                 {['MANUAL','AUTOMATED','SEMI_AUTOMATED'].map(a => <option key={a} value={a}>{a.replace('_', ' ')}</option>)}
               </select>
