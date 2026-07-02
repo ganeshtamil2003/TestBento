@@ -8,6 +8,8 @@ import { ChevronRight, Plus, ChevronDown, FolderOpen, Layers, BookOpen, TestTube
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
+import ExportDropdown from '@/components/layout/ExportDropdown'
+import { exportToExcel, exportToCSV, exportTableToPDF } from '@/lib/export'
 import type { Epic, Feature, UserStory } from '@/types'
 
 export default function HierarchyPage() {
@@ -110,23 +112,26 @@ export default function HierarchyPage() {
     XLSX.writeFile(wb, 'Hierarchy_Template.xlsx')
   }
 
-  function handleExport() {
+  function getHierarchyExportData() {
     const data = []
     for (const epic of epics) {
-      data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': '', 'Feature Description': '', 'User Story Title': '', 'Story Description': '', 'Acceptance Criteria': '' })
       const features = store.features.filter(f => f.epic_id === epic.id)
-      for (const feature of features) {
-        data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': feature.title, 'Feature Description': feature.description || '', 'User Story Title': '', 'Story Description': '', 'Acceptance Criteria': '' })
-        const stories = store.userStories.filter(s => s.feature_id === feature.id)
-        for (const story of stories) {
-          data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': feature.title, 'Feature Description': feature.description || '', 'User Story Title': story.title, 'Story Description': story.description || '', 'Acceptance Criteria': story.acceptance_criteria || '' })
+      if (features.length === 0) {
+        data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': '', 'Feature Description': '', 'User Story Title': '', 'Story Description': '', 'Acceptance Criteria': '' })
+      } else {
+        for (const feature of features) {
+          const stories = store.userStories.filter(s => s.feature_id === feature.id)
+          if (stories.length === 0) {
+            data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': feature.title, 'Feature Description': feature.description || '', 'User Story Title': '', 'Story Description': '', 'Acceptance Criteria': '' })
+          } else {
+            for (const story of stories) {
+              data.push({ 'Epic Title': epic.title, 'Epic Description': epic.description || '', 'Feature Title': feature.title, 'Feature Description': feature.description || '', 'User Story Title': story.title, 'Story Description': story.description || '', 'Acceptance Criteria': story.acceptance_criteria || '' })
+            }
+          }
         }
       }
     }
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Hierarchy')
-    XLSX.writeFile(wb, `${project?.name}_Hierarchy.xlsx`)
+    return data
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -243,9 +248,11 @@ export default function HierarchyPage() {
               {isUploading ? <span className="animate-spin mr-1.5 border-2 border-current border-t-transparent rounded-full w-3.5 h-3.5" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
               Import
             </button>
-            <button className="btn-secondary text-xs px-2.5" onClick={handleExport}>
-              <Download className="w-3.5 h-3.5 mr-1.5" /> Export
-            </button>
+            <ExportDropdown 
+              onExportCSV={() => exportToCSV(`${project?.name}_Hierarchy`, getHierarchyExportData())}
+              onExportExcel={() => exportToExcel(`${project?.name}_Hierarchy`, 'Hierarchy', getHierarchyExportData())}
+              onExportPDF={() => exportTableToPDF(`${project?.name}_Hierarchy`, 'Hierarchy', getHierarchyExportData())}
+            />
             <button className="btn-primary" onClick={() => setModal({ type: 'epic' })}>
               <Plus className="w-4 h-4 mr-2" /> Add Epic
             </button>

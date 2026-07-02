@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { ChevronRight, Plus, CheckCircle, XCircle, AlertTriangle, MinusCircle, Bug, Edit2, Trash2, UserRound, ExternalLink, CheckCircle2 } from 'lucide-react'
+import { PlayCircle, Plus, MoreVertical, Edit2, Trash2, X, PlusCircle, CheckCircle2, AlertTriangle, XCircle, Eye, Download, ChevronRight, CheckCircle, MinusCircle, Bug, UserRound, ExternalLink } from 'lucide-react'
+import { exportToExcel, exportToCSV, exportTableToPDF } from '@/lib/export'
+import ExportDropdown from '@/components/layout/ExportDropdown'
 import { STATUS_COLORS, STATUS_LABELS, cn, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { can } from '@/lib/permissions'
@@ -60,6 +62,30 @@ export default function ExecutionPage() {
   const blockedCount = activeItems.filter(ei => ei.status === 'BLOCKED').length
   const notRunCount = activeItems.filter(ei => ei.status === 'NOT_RUN').length
   const total = activeItems.length
+
+  const getExportData = () => {
+    if (!cycle) return []
+    return activeItems.map(ei => {
+      const tc = projectTCs.find(t => t.id === ei.test_case_id)
+      return {
+        'Execution ID': ei.id,
+        'Test Case ID': tc ? `TC-${tc.sequence_id || tc.id.slice(0,4)}` : '',
+        'Test Case Title': tc?.title || 'Unknown',
+        'Status': ei.status,
+        'Assigned To': store.profiles.find(p => p.id === ei.assigned_to)?.full_name || 'Unassigned',
+        'Executed At': ei.executed_at ? new Date(ei.executed_at).toLocaleString() : '',
+        'Defects Count': (ei.defects || []).length,
+        'Notes': ei.notes || ''
+      }
+    })
+  }
+
+  const handleExportExecutionExcel = () => {
+    exportToExcel(`${project?.name || 'Project'}_Execution_${cycle?.name}`, 'Execution Results', getExportData())
+  }
+  const handleExportExecutionCSV = () => {
+    exportToCSV(`${project?.name || 'Project'}_Execution_${cycle?.name}`, getExportData())
+  }
 
   async function saveCycle(e: React.FormEvent) {
     e.preventDefault()
@@ -411,6 +437,11 @@ export default function ExecutionPage() {
                     <button className="btn-ghost btn-icon p-1.5 text-muted-foreground hover:text-destructive" onClick={() => setDeleteCyclePrompt(cycle.id)} title="Delete Cycle">
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    <ExportDropdown 
+                      onExportCSV={handleExportExecutionCSV}
+                      onExportExcel={handleExportExecutionExcel}
+                      onExportPDF={() => exportTableToPDF(`${project?.name || 'Project'}_Execution_${cycle?.name}`, 'Execution Results', getExportData())}
+                    />
                     <button className="btn-secondary btn-sm" onClick={() => setShowTCModal(true)}>
                       <Plus className="w-3.5 h-3.5" /> Add Test Cases
                     </button>

@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronRight, Search, Activity, History } from 'lucide-react'
+import { ChevronRight, Search, Activity, History, Download } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
+import ExportDropdown from '@/components/layout/ExportDropdown'
+import { exportToCSV, exportToExcel, exportTableToPDF } from '@/lib/export'
 import { createClient } from '@/lib/supabase/client'
 import { cn, getInitials } from '@/lib/utils'
 import type { AuditLog } from '@/types'
@@ -80,6 +82,33 @@ export default function AuditLogsPage() {
             <History className="w-6 h-6" /> 
             Audit Logs
           </h1>
+        </div>
+        <div className="flex items-center gap-2 no-print">
+          <ExportDropdown 
+            onExportCSV={() => exportToCSV('audit_logs', filtered.map(log => ({
+              'Action': log.action,
+              'User': log.user?.full_name || 'Unknown',
+              'Entity Type': log.entity_type,
+              'Entity Title': log.entity_title || '',
+              'Details': log.details ? JSON.stringify(log.details) : '',
+              'Date': new Date(log.created_at).toLocaleString()
+            })))}
+            onExportExcel={() => exportToExcel('audit_logs', 'Logs', filtered.map(log => ({
+              'Action': log.action,
+              'User': log.user?.full_name || 'Unknown',
+              'Entity Type': log.entity_type,
+              'Entity Title': log.entity_title || '',
+              'Details': log.details ? JSON.stringify(log.details) : '',
+              'Date': new Date(log.created_at).toLocaleString()
+            })))}
+            onExportPDF={() => exportTableToPDF('audit_logs', 'Logs', filtered.map(log => ({
+              'Action': log.action,
+              'User': log.user?.full_name || 'Unknown',
+              'Entity Type': log.entity_type,
+              'Entity Title': log.entity_title || '',
+              'Date': new Date(log.created_at).toLocaleString()
+            })))}
+          />
         </div>
       </div>
 

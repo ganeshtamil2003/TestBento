@@ -6,7 +6,9 @@ import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
 import { Plus, Download, Upload, Search, ChevronRight, Trash2, Edit2, Eye, FileSpreadsheet, Sparkles, ArrowRight } from 'lucide-react'
 import { STATUS_LABELS, STATUS_COLORS, cn } from '@/lib/utils'
-import { exportTestCasesToExcel, getImportTemplate, parseTestCasesExcel } from '@/lib/excel'
+import ExportDropdown from '@/components/layout/ExportDropdown'
+import { getTestCasesExportData, getImportTemplate, parseTestCasesExcel } from '@/lib/excel'
+import { exportToExcel, exportToCSV, exportTableToPDF } from '@/lib/export'
 import type { TestCase, TestStep, ReviewCycle } from '@/types'
 import TestCaseModal from '@/components/test-cases/TestCaseModal'
 import GenerateTestCasesModal from '@/components/test-cases/GenerateTestCasesModal'
@@ -249,9 +251,11 @@ export default function TestCasesPage() {
               </label>
             </>
           )}
-          <button className="btn-secondary" onClick={() => exportTestCasesToExcel(filtered)}>
-            <Download className="w-4 h-4" /> Export
-          </button>
+          <ExportDropdown 
+            onExportCSV={() => exportToCSV('test_cases', getTestCasesExportData(filtered))}
+            onExportExcel={() => exportToExcel('test_cases', 'Test Cases', getTestCasesExportData(filtered))}
+            onExportPDF={() => exportTableToPDF('test_cases', 'Test Cases', getTestCasesExportData(filtered))}
+          />
           {can(currentUser?.global_role, 'createTestCase') && (
             <>
               <button id="gen-tc-btn" className="btn-secondary" onClick={() => setShowGenModal(true)}>
@@ -300,7 +304,7 @@ export default function TestCasesPage() {
                 <th className="w-10 text-center">
                   <input type="checkbox" className="accent-primary" checked={allSelected} onChange={toggleAll} />
                 </th>
-                <th className="w-8">#</th>
+                <th className="w-16">ID</th>
                 <th>Title</th>
                 <th>Story</th>
                 <th>Priority</th>
@@ -324,7 +328,7 @@ export default function TestCasesPage() {
                     <td className="text-center">
                       <input type="checkbox" className="accent-primary" checked={selectedTCIds.includes(tc.id)} onChange={() => toggleTC(tc.id)} />
                     </td>
-                    <td className="text-muted-foreground text-xs">{idx + 1}</td>
+                    <td className="text-muted-foreground text-[10px] font-semibold tracking-wide">TC-{tc.sequence_id || tc.id.slice(0,4)}</td>
                     <td>
                       <div className="font-medium text-foreground max-w-xs truncate">{tc.title}</div>
                       {tc.description && <div className="text-xs text-muted-foreground truncate max-w-xs">{tc.description}</div>}

@@ -30,11 +30,11 @@ export default function Sidebar() {
   const base = currentProjectId ? `/projects/${currentProjectId}` : '/projects'
 
   const quickLinks = [
+    { href: `${base}/rtm`,        segment: 'rtm',        icon: GitMerge,     label: 'RTM'        },
     { href: `${base}/test-cases`, segment: 'test-cases', icon: TestTube2,   label: 'Test Cases' },
     { href: `${base}/reviews`,    segment: 'reviews',    icon: CheckCircle2, label: 'Reviews'    },
     { href: `${base}/execution`,  segment: 'execution',  icon: GitBranch,    label: 'Execution'  },
     { href: `${base}/defects`,    segment: 'defects',    icon: Bug,          label: 'Defects'    },
-    { href: `${base}/rtm`,        segment: 'rtm',        icon: GitMerge,     label: 'RTM'        },
     { href: `${base}/reports`,    segment: 'reports',    icon: BarChart3,    label: 'Reports'    },
     { href: `${base}/members`,    segment: 'members',    icon: Users,        label: 'Members'    },
     { href: `${base}/audit-logs`, segment: 'audit-logs', icon: Activity,     label: 'Audit Logs' },

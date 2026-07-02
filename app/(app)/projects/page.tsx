@@ -195,13 +195,13 @@ function ProjectCard({ project }: { project: Project }) {
           <Link href={`/projects/${project.id}/test-cases`} className="btn-primary text-center text-xs py-2">Test Cases</Link>
         </div>
         <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+          <Link href={`/projects/${project.id}/rtm`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">RTM</Link>
           <Link href={`/projects/${project.id}/reviews`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Reviews</Link>
           <Link href={`/projects/${project.id}/execution`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Execution</Link>
           <Link href={`/projects/${project.id}/defects`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Defects</Link>
-          <Link href={`/projects/${project.id}/rtm`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">RTM</Link>
           <Link href={`/projects/${project.id}/reports`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Reports</Link>
-          <Link href={`/projects/${project.id}/audit-logs`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Logs</Link>
           <Link href={`/projects/${project.id}/members`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Members</Link>
+          <Link href={`/projects/${project.id}/audit-logs`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Logs</Link>
         </div>
       </div>
 

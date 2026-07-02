@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
+import ExportDropdown from '@/components/layout/ExportDropdown'
 import { ChevronRight } from 'lucide-react'
+import { exportToCSV, exportToExcel, exportTableToPDF } from '@/lib/export'
 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -88,6 +90,13 @@ export default function ReportsPage() {
             <span>Reports</span>
           </div>
           <h1 className="page-title">Reports & Analytics</h1>
+        </div>
+        <div className="flex items-center gap-2 no-print">
+          <ExportDropdown 
+            onExportCSV={() => exportToCSV('project_metrics', execByFeature)}
+            onExportExcel={() => exportToExcel('project_metrics', 'Metrics', execByFeature)}
+            onExportPDF={() => exportTableToPDF('project_metrics', 'Project Metrics', execByFeature)}
+          />
         </div>
       </div>
 

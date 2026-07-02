@@ -59,6 +59,7 @@ export interface AppNotification {
 export interface Epic {
   id: string
   project_id: string
+  sequence_id?: number
   title: string
   description?: string
   created_at: string
@@ -69,6 +70,7 @@ export interface Epic {
 export interface Feature {
   id: string
   epic_id: string
+  sequence_id?: number
   title: string
   description?: string
   created_at: string
@@ -79,6 +81,7 @@ export interface Feature {
 export interface UserStory {
   id: string
   feature_id: string
+  sequence_id?: number
   title: string
   description?: string
   acceptance_criteria?: string
@@ -99,6 +102,7 @@ export interface TestStep {
 export interface TestCase {
   id: string
   story_id: string
+  sequence_id?: number
   title: string
   description?: string
   preconditions?: string
