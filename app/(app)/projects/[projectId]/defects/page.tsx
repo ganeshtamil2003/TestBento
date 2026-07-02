@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
-import { Bug, ChevronRight, ExternalLink, Search, Filter, AlertCircle, CheckCircle2, CircleDashed } from 'lucide-react'
+import ExportDropdown from '@/components/layout/ExportDropdown'
+import { Bug, ChevronRight, ExternalLink, Search, Filter, AlertCircle, CheckCircle2, CircleDashed, Download } from 'lucide-react'
+import { exportToCSV, exportToExcel, exportTableToPDF } from '@/lib/export'
 import { cn, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { logAudit } from '@/lib/audit'
@@ -208,6 +210,37 @@ export default function DefectsPage() {
             <Bug className="w-6 h-6 text-red-600" />
             Defect Management
           </h1>
+        </div>
+        <div className="flex items-center gap-2 no-print">
+          <ExportDropdown 
+            onExportCSV={() => exportToCSV('defects', allDefects.map(d => ({
+              'Defect Title': d.title,
+              'Description': d.description || '',
+              'Status': d.status,
+              'Severity': d.severity,
+              'Assigned To': store.profiles.find(p => p.id === d.assigned_to)?.full_name || 'Unassigned',
+              'Source Test Case': d.testCaseTitle,
+              'Logged Date': formatDate(d.created_at),
+              'Jira URL': d.jira_url || ''
+            })))}
+            onExportExcel={() => exportToExcel('defects', 'Defects', allDefects.map(d => ({
+              'Defect Title': d.title,
+              'Description': d.description || '',
+              'Status': d.status,
+              'Severity': d.severity,
+              'Assigned To': store.profiles.find(p => p.id === d.assigned_to)?.full_name || 'Unassigned',
+              'Source Test Case': d.testCaseTitle,
+              'Logged Date': formatDate(d.created_at),
+              'Jira URL': d.jira_url || ''
+            })))}
+            onExportPDF={() => exportTableToPDF('defects', 'Defects', allDefects.map(d => ({
+              'Defect Title': d.title,
+              'Status': d.status,
+              'Severity': d.severity,
+              'Assigned To': store.profiles.find(p => p.id === d.assigned_to)?.full_name || 'Unassigned',
+              'Logged Date': formatDate(d.created_at)
+            })))}
+          />
         </div>
       </div>
 

@@ -1,11 +1,11 @@
 import * as XLSX from 'xlsx'
 import type { TestCase, TestStep } from '@/types'
 
-export function exportTestCasesToExcel(testCases: TestCase[], filename = 'test_cases.xlsx') {
-  const rows = testCases.flatMap((tc) => {
+export function getTestCasesExportData(testCases: TestCase[]) {
+  return testCases.flatMap((tc) => {
     if (tc.steps.length === 0) {
       return [{
-        'TC ID': tc.id.slice(0, 8),
+        'TC ID': tc.sequence_id ? `TC-${tc.sequence_id}` : `TC-${tc.id.slice(0, 4)}`,
         'Title': tc.title,
         'Description': tc.description || '',
         'Preconditions': tc.preconditions || '',
@@ -20,7 +20,7 @@ export function exportTestCasesToExcel(testCases: TestCase[], filename = 'test_c
       }]
     }
     return tc.steps.map((step, idx) => ({
-      'TC ID': idx === 0 ? tc.id.slice(0, 8) : '',
+      'TC ID': idx === 0 ? (tc.sequence_id ? `TC-${tc.sequence_id}` : `TC-${tc.id.slice(0, 4)}`) : '',
       'Title': idx === 0 ? tc.title : '',
       'Description': idx === 0 ? (tc.description || '') : '',
       'Preconditions': idx === 0 ? (tc.preconditions || '') : '',
@@ -34,7 +34,10 @@ export function exportTestCasesToExcel(testCases: TestCase[], filename = 'test_c
       'Status': idx === 0 ? tc.status : '',
     }))
   })
+}
 
+export function exportTestCasesToExcel(testCases: TestCase[], filename = 'test_cases.xlsx') {
+  const rows = getTestCasesExportData(testCases)
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Test Cases')

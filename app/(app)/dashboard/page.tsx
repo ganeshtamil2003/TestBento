@@ -5,8 +5,10 @@ import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
 import {
   FolderKanban, TestTube2, CheckCircle2, GitBranch,
-  CheckCheck
+  CheckCheck, Download, FileText
 } from 'lucide-react'
+import { exportToCSV, exportToExcel, exportPageToPDF, exportTableToPDF } from '@/lib/export'
+import ExportDropdown from '@/components/layout/ExportDropdown'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, Legend
@@ -17,7 +19,7 @@ const AUTO_COLORS = ['#6366f1', '#8b5cf6', '#94a3b8']
 
 export default function DashboardPage() {
   const store = useAppStore()
-  const { projects, testCases, reviewCycles, executionItems, currentUser } = store
+  const { projects, testCases, reviewCycles, executionItems, currentUser, epics, features, userStories } = store
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL')
   const [selectedCycleId, setSelectedCycleId] = useState<string>('ALL')
 
@@ -81,6 +83,32 @@ export default function DashboardPage() {
         Draft: pTCs.filter(tc => tc.status === 'DRAFT').length,
       }
     })
+
+  const getDashboardExportData = () => {
+    return projects.map(p => {
+      const pEpics = epics.filter(e => e.project_id === p.id)
+      const pFeatures = features.filter(f => pEpics.some(e => e.id === f.epic_id))
+      const pStories = userStories.filter(s => pFeatures.some(f => f.id === s.feature_id))
+      const pTCs = testCases.filter(tc => pStories.some(s => s.id === tc.story_id))
+      const pExecItems = executionItems.filter(ei => pTCs.some(tc => tc.id === ei.test_case_id))
+      
+      return {
+        'Project Name': p.name,
+        'Description': p.description || '',
+        'Total Epics': pEpics.length,
+        'Total Features': pFeatures.length,
+        'Total User Stories': pStories.length,
+        'Total Test Cases': pTCs.length,
+        'Approved Test Cases': pTCs.filter(tc => tc.status === 'APPROVED').length,
+        'Total Executions': pExecItems.length,
+        'Passed': pExecItems.filter(ei => ei.status === 'PASS').length,
+        'Failed': pExecItems.filter(ei => ei.status === 'FAIL').length,
+        'Blocked': pExecItems.filter(ei => ei.status === 'BLOCKED').length,
+        'Not Run': pExecItems.filter(ei => ei.status === 'NOT_RUN').length,
+        'Pass Rate (%)': pExecItems.length > 0 ? Math.round((pExecItems.filter(ei => ei.status === 'PASS').length / pExecItems.length) * 100) : 0
+      }
+    })
+  }
 
   const pieData = [
     { name: 'Pass', value: passCount },
@@ -152,6 +180,17 @@ export default function DashboardPage() {
               </select>
             </>
           )}
+
+          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border no-print">
+            <button className="btn-secondary h-10 px-3" onClick={exportPageToPDF} title="Print Dashboard Page">
+              <FileText className="w-4 h-4" /> Export Page
+            </button>
+            <ExportDropdown 
+              onExportCSV={() => exportToCSV('dashboard_summary', getDashboardExportData())}
+              onExportExcel={() => exportToExcel('dashboard_summary', 'Dashboard', getDashboardExportData())}
+              onExportPDF={() => exportTableToPDF('dashboard_summary', 'Workspace Overview', getDashboardExportData())}
+            />
+          </div>
         </div>
       </div>
       {/* Stat Cards */}
