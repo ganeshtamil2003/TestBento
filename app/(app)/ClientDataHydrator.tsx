@@ -31,7 +31,8 @@ export default function ClientDataHydrator({ children, userId }: { children: Rea
           { data: executionItems },
           { data: defects },
           { data: projectMembers },
-          { data: notifications }
+          { data: notifications },
+          { data: projectIntegrations }
         ] = await Promise.all([
           supabase.from('projects').select('*'),
           supabase.from('epics').select('*'),
@@ -43,7 +44,8 @@ export default function ClientDataHydrator({ children, userId }: { children: Rea
           supabase.from('execution_items').select('*'),
           supabase.from('defects').select('*'),
           supabase.from('project_members').select('*, profile:user_id(*)'),
-          supabase.from('notifications').select('*').order('created_at', { ascending: false })
+          supabase.from('notifications').select('*').order('created_at', { ascending: false }),
+          supabase.from('project_integrations').select('*')
         ])
 
         const profiles = await getActiveProfiles()
@@ -60,6 +62,7 @@ export default function ClientDataHydrator({ children, userId }: { children: Rea
           defects: defects || [],
           projectMembers: projectMembers || [],
           notifications: notifications || [],
+          projectIntegrations: projectIntegrations || [],
           profiles: profiles || []
         })
 

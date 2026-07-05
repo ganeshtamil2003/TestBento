@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
   LayoutDashboard, FolderKanban, TestTube2, CheckCircle2,
-  GitBranch, BarChart3, Users, ChevronRight, LayoutGrid, GitMerge, LogOut, Bug, Activity
+  GitBranch, BarChart3, Users, ChevronRight, LayoutGrid, GitMerge, LogOut, Bug, Activity, Plug
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
@@ -38,6 +38,7 @@ export default function Sidebar() {
     { href: `${base}/reports`,    segment: 'reports',    icon: BarChart3,    label: 'Reports'    },
     { href: `${base}/members`,    segment: 'members',    icon: Users,        label: 'Members'    },
     { href: `${base}/audit-logs`, segment: 'audit-logs', icon: Activity,     label: 'Audit Logs' },
+    { href: `${base}/integrations`, segment: 'integrations', icon: Plug,     label: 'Integrations' },
   ]
 
   return (

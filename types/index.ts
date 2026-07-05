@@ -46,6 +46,18 @@ export interface ProjectMember {
   profile?: Profile
 }
 
+export interface ProjectIntegration {
+  id: string
+  project_id: string
+  provider: 'JIRA'
+  base_url: string
+  email: string
+  api_token: string
+  target_project_key: string
+  created_at: string
+  updated_at: string
+}
+
 export interface AppNotification {
   id: string
   user_id: string
@@ -191,6 +203,7 @@ export interface Defect {
   status: DefectStatus
   description?: string
   jira_url?: string
+  jira_issue_key?: string
   assigned_to?: string
   created_by: string
   created_at: string

@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import type { Profile, Project, Epic, Feature, UserStory, TestCase, ReviewCycle, ExecutionCycle, ExecutionItem, Defect, ProjectMember, AppNotification } from '@/types'
+import type { Profile, Project, Epic, Feature, UserStory, TestCase, ReviewCycle, ExecutionCycle, ExecutionItem, Defect, ProjectMember, AppNotification, ProjectIntegration } from '@/types'
 
 interface AppState {
   currentUser: Profile
@@ -17,6 +17,7 @@ interface AppState {
   profiles: Profile[]
   projectMembers: ProjectMember[]
   notifications: AppNotification[]
+  projectIntegrations: ProjectIntegration[]
 
   // Actions
   setCurrentUser: (user: Profile) => void
@@ -53,6 +54,9 @@ interface AppState {
   addNotification: (notification: AppNotification) => void
   updateNotification: (id: string, data: Partial<AppNotification>) => void
   markAllNotificationsRead: () => void
+  addProjectIntegration: (pi: ProjectIntegration) => void
+  updateProjectIntegration: (id: string, data: Partial<ProjectIntegration>) => void
+  deleteProjectIntegration: (id: string) => void
 
   setInitialData: (data: Partial<AppState>) => void
 }
@@ -71,6 +75,7 @@ export const useAppStore = create<AppState>()((set) => ({
   profiles: [],
   projectMembers: [],
   notifications: [],
+  projectIntegrations: [],
 
   setCurrentUser: (user) => set({ currentUser: user }),
 
@@ -116,6 +121,10 @@ export const useAppStore = create<AppState>()((set) => ({
   addNotification: (n) => set((s) => ({ notifications: [n, ...s.notifications] })),
   updateNotification: (id, data) => set((s) => ({ notifications: s.notifications.map(n => n.id === id ? { ...n, ...data } : n) })),
   markAllNotificationsRead: () => set((s) => ({ notifications: s.notifications.map(n => ({ ...n, is_read: true })) })),
+
+  addProjectIntegration: (pi) => set((s) => ({ projectIntegrations: [...s.projectIntegrations, pi] })),
+  updateProjectIntegration: (id, data) => set((s) => ({ projectIntegrations: s.projectIntegrations.map(pi => pi.id === id ? { ...pi, ...data } : pi) })),
+  deleteProjectIntegration: (id) => set((s) => ({ projectIntegrations: s.projectIntegrations.filter(pi => pi.id !== id) })),
 
   setInitialData: (data) => set((s) => ({ ...s, ...data })),
 }))

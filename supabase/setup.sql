@@ -226,3 +226,24 @@ CREATE TABLE notifications (
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Notifications are viewable by authenticated users" ON notifications FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Notifications can be inserted/updated by authenticated users" ON notifications FOR ALL USING (auth.role() = 'authenticated');
+
+-- Project Integrations Table
+CREATE TABLE project_integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'JIRA',
+  base_url TEXT NOT NULL,
+  email TEXT NOT NULL,
+  api_token TEXT NOT NULL,
+  target_project_key TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(project_id, provider)
+);
+
+ALTER TABLE project_integrations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Project integrations viewable by authenticated users" ON project_integrations FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Project integrations manageable by authenticated users" ON project_integrations FOR ALL USING (auth.role() = 'authenticated');
+
+-- Update defects table for JIRA integration
+ALTER TABLE defects ADD COLUMN jira_issue_key TEXT;
