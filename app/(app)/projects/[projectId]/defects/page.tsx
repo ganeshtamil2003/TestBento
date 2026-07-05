@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAppStore } from '@/store/appStore'
 import ExportDropdown from '@/components/layout/ExportDropdown'
-import { Bug, ChevronRight, ExternalLink, Search, Filter, AlertCircle, CheckCircle2, CircleDashed, Download } from 'lucide-react'
+import { Bug, ChevronRight, ExternalLink, Search, Filter, AlertCircle, CheckCircle2, CircleDashed, Download, RefreshCw, Link as LinkIcon, Plug } from 'lucide-react'
 import { exportToCSV, exportToExcel, exportTableToPDF } from '@/lib/export'
 import { cn, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -38,11 +38,18 @@ export default function DefectsPage() {
   
   const [selectedDefects, setSelectedDefects] = useState<string[]>([])
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+  
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [jiraDefects, setJiraDefects] = useState<any[]>([])
+
   const supabase = createClient()
 
   const project = store.projects.find(p => p.id === projectId)
   const projectMemberIds = new Set(store.projectMembers.filter(m => m.project_id === projectId).map(m => m.user_id))
   const projectMembers = store.profiles.filter(p => p.status === 'ACTIVE' && projectMemberIds.has(p.id))
+  
+  const jiraIntegration = store.projectIntegrations.find(pi => pi.project_id === projectId && pi.provider === 'JIRA')
   
   // Aggregate all defects for this project
   const allDefects = store.defects
@@ -62,13 +69,65 @@ export default function DefectsPage() {
       return matchesSearch && matchesSeverity && matchesStatus
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  const fetchJiraData = useCallback(async () => {
+    if (!jiraIntegration) return
+
+    setIsSyncing(true)
+    setSyncError(null)
+    try {
+      const res = await fetch('/api/integrations/jira', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integration: jiraIntegration, issueKeys: [] })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch from JIRA')
+      
+      const issues = data.issues || []
+      // Map to common structure
+      const mapped = issues.map((i: any) => ({
+        id: i.key, // Use Jira Key as ID
+        title: i.title,
+        status: i.status,
+        severity: i.severity,
+        assignee_to: null, // Will use assigneeName
+        jiraAssigneeName: i.assigneeName,
+        testCaseTitle: 'N/A (JIRA Managed)',
+        created_at: new Date().toISOString(), // Mocked for now, JIRA API could return it
+        jira_issue_key: i.key,
+        jira_url: `${jiraIntegration.base_url}/browse/${i.key}`,
+        isJiraSynced: true
+      }))
+      
+      setJiraDefects(mapped)
+    } catch (err: any) {
+      console.error(err)
+      setSyncError(err.message)
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [jiraIntegration])
+
+  useEffect(() => {
+    fetchJiraData()
+  }, [fetchJiraData])
+
+  // Determine active dataset
+  const activeDefects = jiraIntegration ? jiraDefects : allDefects
+  const filteredDefects = activeDefects.filter(d => {
+    const matchesSearch = d.title.toLowerCase().includes(search.toLowerCase())
+    const matchesSeverity = severityFilter === 'ALL' || d.severity === severityFilter
+    const matchesStatus = statusFilter === 'ALL' || d.status === statusFilter
+    return matchesSearch && matchesSeverity && matchesStatus
+  })
 
   // Summary Metrics
-  const projectDefects = store.defects.filter(d => d.project_id === projectId)
-  const totalOpen = projectDefects.filter(d => d.status === 'OPEN').length
-  const totalInProgress = projectDefects.filter(d => d.status === 'IN_PROGRESS').length
-  const totalResolved = projectDefects.filter(d => d.status === 'RESOLVED' || d.status === 'CLOSED').length
-  const totalCriticalHigh = projectDefects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.status !== 'CLOSED' && d.status !== 'RESOLVED').length
+  const totalOpen = activeDefects.filter(d => d.status === 'OPEN').length
+  const totalInProgress = activeDefects.filter(d => d.status === 'IN_PROGRESS').length
+  const totalResolved = activeDefects.filter(d => d.status === 'RESOLVED' || d.status === 'CLOSED').length
+  const totalCriticalHigh = activeDefects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.status !== 'CLOSED' && d.status !== 'RESOLVED').length
 
   const canEdit = can(store.currentUser?.global_role, 'updateDefect')
   const canAssign = store.currentUser?.global_role === 'ADMIN' || store.currentUser?.global_role === 'QA_LEAD' || store.currentUser?.global_role === 'MANAGER'
@@ -132,11 +191,13 @@ export default function DefectsPage() {
     }
   }
 
-  const allSelected = allDefects.length > 0 && selectedDefects.length === allDefects.length
+  const allSelected = !jiraIntegration && allDefects.length > 0 && selectedDefects.length === allDefects.length
   function toggleAll() {
+    if (jiraIntegration) return
     setSelectedDefects(allSelected ? [] : allDefects.map(d => d.id))
   }
   function toggleDefect(id: string) {
+    if (jiraIntegration) return
     setSelectedDefects(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
@@ -212,8 +273,29 @@ export default function DefectsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2 no-print">
+          {jiraIntegration && (
+            <>
+              <a 
+                href={`${jiraIntegration.base_url}/secure/CreateIssue!default.jspa`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary flex items-center gap-2"
+              >
+                <Bug className="w-4 h-4" />
+                Log JIRA Defect
+              </a>
+              <button 
+                onClick={fetchJiraData}
+                disabled={isSyncing}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <RefreshCw className={cn("w-4 h-4", isSyncing ? "animate-spin" : "")} />
+                {isSyncing ? "Syncing..." : "Sync JIRA"}
+              </button>
+            </>
+          )}
           <ExportDropdown 
-            onExportCSV={() => exportToCSV('defects', allDefects.map(d => ({
+            onExportCSV={() => exportToCSV('defects', filteredDefects.map(d => ({
               'Defect Title': d.title,
               'Description': d.description || '',
               'Status': d.status,
@@ -223,7 +305,7 @@ export default function DefectsPage() {
               'Logged Date': formatDate(d.created_at),
               'Jira URL': d.jira_url || ''
             })))}
-            onExportExcel={() => exportToExcel('defects', 'Defects', allDefects.map(d => ({
+            onExportExcel={() => exportToExcel('defects', 'Defects', filteredDefects.map(d => ({
               'Defect Title': d.title,
               'Description': d.description || '',
               'Status': d.status,
@@ -233,7 +315,7 @@ export default function DefectsPage() {
               'Logged Date': formatDate(d.created_at),
               'Jira URL': d.jira_url || ''
             })))}
-            onExportPDF={() => exportTableToPDF('defects', 'Defects', allDefects.map(d => ({
+            onExportPDF={() => exportTableToPDF('defects', 'Defects', filteredDefects.map(d => ({
               'Defect Title': d.title,
               'Status': d.status,
               'Severity': d.severity,
@@ -243,6 +325,16 @@ export default function DefectsPage() {
           />
         </div>
       </div>
+      
+      {syncError && (
+        <div className="p-4 bg-red-100 text-red-700 rounded-lg border border-red-200 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-bold">Jira Sync Error</h3>
+            <p className="text-sm">{syncError}</p>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -322,38 +414,51 @@ export default function DefectsPage() {
             <thead>
               <tr>
                 <th className="w-10 text-center">
-                  <input type="checkbox" className="accent-primary" checked={allSelected} onChange={toggleAll} />
+                  {!jiraIntegration && <input type="checkbox" className="accent-primary" checked={allSelected} onChange={toggleAll} />}
                 </th>
                 <th>Bug Title</th>
+                <th className="w-24">Issue Key</th>
                 <th>Status</th>
                 <th>Severity</th>
                 <th>Assigned To</th>
-                <th>Source Test Case</th>
-                <th>Logged Date</th>
+                {!jiraIntegration && <th>Source Test Case</th>}
+                <th>{jiraIntegration ? 'Reporter / Date' : 'Logged Date'}</th>
                 <th>Links</th>
               </tr>
             </thead>
             <tbody>
-              {allDefects.length === 0 && (
+              {filteredDefects.length === 0 && (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     {search || severityFilter !== 'ALL' || statusFilter !== 'ALL' ? 'No defects match your filters.' : 'No defects logged for this project yet.'}
                   </td>
                 </tr>
               )}
-              {allDefects.map((defect) => (
+              {filteredDefects.map((defect) => (
                 <tr key={defect.id} className={cn(isUpdating === defect.id ? 'opacity-50' : '', selectedDefects.includes(defect.id) ? 'bg-accent/30' : '')}>
                   <td className="text-center">
-                    <input type="checkbox" className="accent-primary" checked={selectedDefects.includes(defect.id)} onChange={() => toggleDefect(defect.id)} />
+                    {!jiraIntegration && <input type="checkbox" className="accent-primary" checked={selectedDefects.includes(defect.id)} onChange={() => toggleDefect(defect.id)} />}
                   </td>
                   <td>
-                    <div className="font-semibold text-sm">{defect.title}</div>
+                    <div className="font-semibold text-sm flex items-center gap-2">
+                      {defect.title}
+                      {defect.isJiraSynced && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1"><Plug className="w-3 h-3"/> JIRA</span>}
+                    </div>
                     {defect.description && <div className="text-xs text-muted-foreground truncate max-w-[200px]">{defect.description}</div>}
                   </td>
                   <td>
-                    {canEdit ? (
+                    {defect.jira_issue_key ? (
+                      <span className="text-xs font-mono bg-muted px-2 py-1 rounded border border-border">
+                        {defect.jira_issue_key}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">-</span>
+                    )}
+                  </td>
+                  <td>
+                    {canEdit && !defect.isJiraSynced ? (
                       <select 
-                        className={cn('text-xs font-semibold py-1 px-2 rounded border cursor-pointer outline-none', STATUS_COLORS[defect.status])}
+                        className={cn('text-xs font-semibold py-1 px-2 rounded border cursor-pointer outline-none', STATUS_COLORS[defect.status as DefectStatus])}
                         value={defect.status}
                         onChange={(e) => handleStatusChange(defect.id, e.target.value as DefectStatus)}
                         disabled={isUpdating === defect.id}
@@ -364,7 +469,7 @@ export default function DefectsPage() {
                         <option value="CLOSED">CLOSED</option>
                       </select>
                     ) : (
-                      <span className={cn('badge text-[10px] px-2 py-0.5 border', STATUS_COLORS[defect.status])}>
+                      <span className={cn('badge text-[10px] px-2 py-0.5 border', STATUS_COLORS[defect.status as DefectStatus])}>
                         {defect.status.replace('_', ' ')}
                       </span>
                     )}
@@ -375,7 +480,11 @@ export default function DefectsPage() {
                     </span>
                   </td>
                   <td>
-                    {canAssign ? (
+                    {jiraIntegration || defect.isJiraSynced ? (
+                      <span className="text-xs text-muted-foreground font-medium">
+                        {defect.jiraAssigneeName || 'Unassigned'} (Jira)
+                      </span>
+                    ) : canAssign ? (
                       <select
                         className="text-xs p-1 rounded border bg-card outline-none cursor-pointer"
                         value={defect.assigned_to || ''}
@@ -393,10 +502,13 @@ export default function DefectsPage() {
                       </span>
                     )}
                   </td>
-                  <td>
-                    <div className="text-sm max-w-[150px] truncate" title={defect.testCaseTitle}>{defect.testCaseTitle}</div>
-                  </td>
+                  {!jiraIntegration && (
+                    <td>
+                      <div className="text-sm max-w-[150px] truncate" title={defect.testCaseTitle}>{defect.testCaseTitle}</div>
+                    </td>
+                  )}
                   <td className="text-xs text-muted-foreground">
+                    {jiraIntegration && defect.reporterName && <div className="font-medium text-foreground mb-0.5">{defect.reporterName}</div>}
                     {formatDate(defect.created_at)}
                   </td>
                   <td>
@@ -421,7 +533,7 @@ export default function DefectsPage() {
       </div>
 
       {/* Floating Bulk Action Bar */}
-      {selectedDefects.length > 0 && canEdit && (
+      {!jiraIntegration && selectedDefects.length > 0 && canEdit && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in flex items-center gap-4 bg-card border border-border shadow-2xl rounded-full px-6 py-3">
           <span className="text-sm font-medium">{selectedDefects.length} selected</span>
           <div className="h-4 w-px bg-border"></div>
