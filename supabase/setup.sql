@@ -233,12 +233,13 @@ CREATE TABLE project_integrations (
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   provider TEXT NOT NULL DEFAULT 'JIRA',
   base_url TEXT NOT NULL,
-  email TEXT NOT NULL,
+  email TEXT,
   api_token TEXT NOT NULL,
   target_project_key TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT 'Default Connection',
+  is_active BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(project_id, provider)
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE project_integrations ENABLE ROW LEVEL SECURITY;
