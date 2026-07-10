@@ -37,8 +37,8 @@ export default function Sidebar() {
     { href: `${base}/defects`,    segment: 'defects',    icon: Bug,          label: 'Defects'    },
     { href: `${base}/reports`,    segment: 'reports',    icon: BarChart3,    label: 'Reports'    },
     { href: `${base}/members`,    segment: 'members',    icon: Users,        label: 'Members'    },
-    { href: `${base}/audit-logs`, segment: 'audit-logs', icon: Activity,     label: 'Audit Logs' },
     { href: `${base}/integrations`, segment: 'integrations', icon: Plug,     label: 'Integrations' },
+    { href: `${base}/audit-logs`, segment: 'audit-logs', icon: Activity,     label: 'Audit Logs' },
   ]
 
   return (

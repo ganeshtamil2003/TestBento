@@ -57,6 +57,8 @@ interface AppState {
   addProjectIntegration: (pi: ProjectIntegration) => void
   updateProjectIntegration: (id: string, data: Partial<ProjectIntegration>) => void
   deleteProjectIntegration: (id: string) => void
+  activateProjectIntegration: (id: string, projectId: string) => void
+  deactivateProjectIntegration: (id: string) => void
 
   setInitialData: (data: Partial<AppState>) => void
 }
@@ -125,6 +127,18 @@ export const useAppStore = create<AppState>()((set) => ({
   addProjectIntegration: (pi) => set((s) => ({ projectIntegrations: [...s.projectIntegrations, pi] })),
   updateProjectIntegration: (id, data) => set((s) => ({ projectIntegrations: s.projectIntegrations.map(pi => pi.id === id ? { ...pi, ...data } : pi) })),
   deleteProjectIntegration: (id) => set((s) => ({ projectIntegrations: s.projectIntegrations.filter(pi => pi.id !== id) })),
+  activateProjectIntegration: (id, projectId) => set((s) => ({
+    projectIntegrations: s.projectIntegrations.map(pi => 
+      pi.project_id === projectId 
+        ? { ...pi, is_active: pi.id === id }
+        : pi
+    )
+  })),
+  deactivateProjectIntegration: (id) => set((s) => ({
+    projectIntegrations: s.projectIntegrations.map(pi => 
+      pi.id === id ? { ...pi, is_active: false } : pi
+    )
+  })),
 
   setInitialData: (data) => set((s) => ({ ...s, ...data })),
 }))

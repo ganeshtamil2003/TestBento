@@ -49,16 +49,20 @@ export default function DefectsPage() {
   const projectMemberIds = new Set(store.projectMembers.filter(m => m.project_id === projectId).map(m => m.user_id))
   const projectMembers = store.profiles.filter(p => p.status === 'ACTIVE' && projectMemberIds.has(p.id))
   
-  const jiraIntegration = store.projectIntegrations.find(pi => pi.project_id === projectId && pi.provider === 'JIRA')
+  // Find the single active integration for this project
+  const activeIntegration = store.projectIntegrations.find(pi => pi.project_id === projectId && pi.is_active === true)
+  const isIntegrationActive = !!activeIntegration
   
   // Aggregate all defects for this project
   const allDefects = store.defects
     .filter(d => d.project_id === projectId)
     .map(d => {
       const tc = store.testCases.find(t => t.id === d.test_case_id)
+      const reporter = store.profiles.find(p => p.id === d.created_by)
       return {
         ...d,
         testCaseTitle: tc?.title || 'Unknown Test Case',
+        reporterName: reporter?.full_name || 'System',
       }
     })
     .filter(d => {
@@ -71,16 +75,16 @@ export default function DefectsPage() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  const fetchJiraData = useCallback(async () => {
-    if (!jiraIntegration) return
+  const fetchIntegrationData = useCallback(async () => {
+    if (!activeIntegration) return
 
     setIsSyncing(true)
     setSyncError(null)
     try {
-      const res = await fetch('/api/integrations/jira', {
+      const res = await fetch(`/api/integrations/${activeIntegration.provider.toLowerCase()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ integration: jiraIntegration, issueKeys: [] })
+        body: JSON.stringify({ integration: activeIntegration, issueKeys: [] })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to fetch from JIRA')
@@ -95,9 +99,10 @@ export default function DefectsPage() {
         assignee_to: null, // Will use assigneeName
         jiraAssigneeName: i.assigneeName,
         testCaseTitle: 'N/A (JIRA Managed)',
-        created_at: new Date().toISOString(), // Mocked for now, JIRA API could return it
+        created_at: i.created_at || new Date().toISOString(),
+        reporterName: i.reporterName || 'Unknown',
         jira_issue_key: i.key,
-        jira_url: `${jiraIntegration.base_url}/browse/${i.key}`,
+        jira_url: i.url || `${activeIntegration.base_url}/browse/${i.key}`,
         isJiraSynced: true
       }))
       
@@ -108,14 +113,14 @@ export default function DefectsPage() {
     } finally {
       setIsSyncing(false)
     }
-  }, [jiraIntegration])
+  }, [activeIntegration])
 
   useEffect(() => {
-    fetchJiraData()
-  }, [fetchJiraData])
+    fetchIntegrationData()
+  }, [fetchIntegrationData])
 
   // Determine active dataset
-  const activeDefects = jiraIntegration ? jiraDefects : allDefects
+  const activeDefects = isIntegrationActive ? jiraDefects : allDefects
   const filteredDefects = activeDefects.filter(d => {
     const matchesSearch = d.title.toLowerCase().includes(search.toLowerCase())
     const matchesSeverity = severityFilter === 'ALL' || d.severity === severityFilter
@@ -128,6 +133,8 @@ export default function DefectsPage() {
   const totalInProgress = activeDefects.filter(d => d.status === 'IN_PROGRESS').length
   const totalResolved = activeDefects.filter(d => d.status === 'RESOLVED' || d.status === 'CLOSED').length
   const totalCriticalHigh = activeDefects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.status !== 'CLOSED' && d.status !== 'RESOLVED').length
+  
+  const showInProgress = !isIntegrationActive || activeIntegration?.provider === 'JIRA'
 
   const canEdit = can(store.currentUser?.global_role, 'updateDefect')
   const canAssign = store.currentUser?.global_role === 'ADMIN' || store.currentUser?.global_role === 'QA_LEAD' || store.currentUser?.global_role === 'MANAGER'
@@ -191,13 +198,13 @@ export default function DefectsPage() {
     }
   }
 
-  const allSelected = !jiraIntegration && allDefects.length > 0 && selectedDefects.length === allDefects.length
+  const allSelected = !isIntegrationActive && allDefects.length > 0 && selectedDefects.length === allDefects.length
   function toggleAll() {
-    if (jiraIntegration) return
+    if (isIntegrationActive) return
     setSelectedDefects(allSelected ? [] : allDefects.map(d => d.id))
   }
   function toggleDefect(id: string) {
-    if (jiraIntegration) return
+    if (isIntegrationActive) return
     setSelectedDefects(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
@@ -256,6 +263,29 @@ export default function DefectsPage() {
 
   if (!project) return <div className="p-8 text-muted-foreground">Project not found.</div>
 
+  const getCreateIssueUrl = () => {
+    if (!activeIntegration) return '#'
+    if (activeIntegration.provider === 'JIRA') {
+      return `${activeIntegration.base_url}/secure/CreateIssue!default.jspa`
+    }
+    if (activeIntegration.provider === 'GITLAB') {
+      const gitlabDefect = filteredDefects.find(d => d.isJiraSynced && d.jira_url)
+      if (gitlabDefect && gitlabDefect.jira_url) {
+         // jira_url looks like: https://gitlab.com/group/project/-/issues/123
+         const projectPath = gitlabDefect.jira_url.split('/-/issues/')[0]
+         return `${projectPath}/-/issues/new`
+      }
+      return activeIntegration.target_project_key.includes('/') 
+        ? `${activeIntegration.base_url}/${activeIntegration.target_project_key}/-/issues/new`
+        : `${activeIntegration.base_url}/dashboard/issues`
+    }
+    if (activeIntegration.provider === 'GITHUB') {
+      const uiBaseUrl = activeIntegration.base_url.includes('api.github.com') ? 'https://github.com' : activeIntegration.base_url
+      return `${uiBaseUrl}/${activeIntegration.target_project_key}/issues/new`
+    }
+    return activeIntegration.base_url || '#'
+  }
+
   return (
     <div className="space-y-6">
       <div className="page-header">
@@ -273,24 +303,24 @@ export default function DefectsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2 no-print">
-          {jiraIntegration && (
+          {isIntegrationActive && (
             <>
               <a 
-                href={`${jiraIntegration.base_url}/secure/CreateIssue!default.jspa`}
+                href={getCreateIssueUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-primary flex items-center gap-2"
               >
                 <Bug className="w-4 h-4" />
-                Log JIRA Defect
+                Log {activeIntegration?.provider} Defect
               </a>
               <button 
-                onClick={fetchJiraData}
+                onClick={fetchIntegrationData}
                 disabled={isSyncing}
                 className="btn-secondary flex items-center gap-2"
               >
                 <RefreshCw className={cn("w-4 h-4", isSyncing ? "animate-spin" : "")} />
-                {isSyncing ? "Syncing..." : "Sync JIRA"}
+                {isSyncing ? "Syncing..." : `Sync ${activeIntegration?.provider}`}
               </button>
             </>
           )}
@@ -330,14 +360,14 @@ export default function DefectsPage() {
         <div className="p-4 bg-red-100 text-red-700 rounded-lg border border-red-200 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-bold">Jira Sync Error</h3>
+            <h3 className="font-bold">{activeIntegration?.provider || 'Integration'} Sync Error</h3>
             <p className="text-sm">{syncError}</p>
           </div>
         </div>
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showInProgress ? "md:grid-cols-4" : "md:grid-cols-3")}>
         <div className="stat-card flex items-center gap-4">
           <div className="p-3 bg-red-100 text-red-600 rounded-lg"><AlertCircle className="w-6 h-6" /></div>
           <div>
@@ -352,13 +382,15 @@ export default function DefectsPage() {
             <div className="text-xs text-muted-foreground uppercase font-semibold">Open Defects</div>
           </div>
         </div>
-        <div className="stat-card flex items-center gap-4">
-          <div className="p-3 bg-blue-100 text-blue-600 rounded-lg"><Bug className="w-6 h-6" /></div>
-          <div>
-            <div className="text-2xl font-bold">{totalInProgress}</div>
-            <div className="text-xs text-muted-foreground uppercase font-semibold">In Progress</div>
+        {showInProgress && (
+          <div className="stat-card flex items-center gap-4">
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-lg"><Bug className="w-6 h-6" /></div>
+            <div>
+              <div className="text-2xl font-bold">{totalInProgress}</div>
+              <div className="text-xs text-muted-foreground uppercase font-semibold">In Progress</div>
+            </div>
           </div>
-        </div>
+        )}
         <div className="stat-card flex items-center gap-4">
           <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg"><CheckCircle2 className="w-6 h-6" /></div>
           <div>
@@ -414,16 +446,17 @@ export default function DefectsPage() {
             <thead>
               <tr>
                 <th className="w-10 text-center">
-                  {!jiraIntegration && <input type="checkbox" className="accent-primary" checked={allSelected} onChange={toggleAll} />}
+                  {!isIntegrationActive && <input type="checkbox" className="accent-primary" checked={allSelected} onChange={toggleAll} />}
                 </th>
-                <th>Bug Title</th>
-                <th className="w-24">Issue Key</th>
-                <th>Status</th>
-                <th>Severity</th>
-                <th>Assigned To</th>
-                {!jiraIntegration && <th>Source Test Case</th>}
-                <th>{jiraIntegration ? 'Reporter / Date' : 'Logged Date'}</th>
-                <th>Links</th>
+                <th className="text-left font-semibold">Bug Title</th>
+                <th className="text-left font-semibold whitespace-nowrap">Issue Key</th>
+                <th className="text-left font-semibold whitespace-nowrap">Status</th>
+                <th className="text-left font-semibold whitespace-nowrap">Severity</th>
+                <th className="text-left font-semibold whitespace-nowrap">Assigned To</th>
+                {!isIntegrationActive && <th className="text-left font-semibold whitespace-nowrap">Source Test Case</th>}
+                <th className="text-left font-semibold whitespace-nowrap">Reporter</th>
+                <th className="text-left font-semibold whitespace-nowrap">Logged Date</th>
+                <th className="text-left font-semibold whitespace-nowrap">Links</th>
               </tr>
             </thead>
             <tbody>
@@ -437,16 +470,16 @@ export default function DefectsPage() {
               {filteredDefects.map((defect) => (
                 <tr key={defect.id} className={cn(isUpdating === defect.id ? 'opacity-50' : '', selectedDefects.includes(defect.id) ? 'bg-accent/30' : '')}>
                   <td className="text-center">
-                    {!jiraIntegration && <input type="checkbox" className="accent-primary" checked={selectedDefects.includes(defect.id)} onChange={() => toggleDefect(defect.id)} />}
+                    {!isIntegrationActive && <input type="checkbox" className="accent-primary" checked={selectedDefects.includes(defect.id)} onChange={() => toggleDefect(defect.id)} />}
                   </td>
                   <td>
                     <div className="font-semibold text-sm flex items-center gap-2">
                       {defect.title}
-                      {defect.isJiraSynced && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1"><Plug className="w-3 h-3"/> JIRA</span>}
+                      {defect.isJiraSynced && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1"><Plug className="w-3 h-3"/> {activeIntegration?.provider}</span>}
                     </div>
                     {defect.description && <div className="text-xs text-muted-foreground truncate max-w-[200px]">{defect.description}</div>}
                   </td>
-                  <td>
+                  <td className="text-left">
                     {defect.jira_issue_key ? (
                       <span className="text-xs font-mono bg-muted px-2 py-1 rounded border border-border">
                         {defect.jira_issue_key}
@@ -455,7 +488,7 @@ export default function DefectsPage() {
                       <span className="text-xs text-muted-foreground italic">-</span>
                     )}
                   </td>
-                  <td>
+                  <td className="text-left">
                     {canEdit && !defect.isJiraSynced ? (
                       <select 
                         className={cn('text-xs font-semibold py-1 px-2 rounded border cursor-pointer outline-none', STATUS_COLORS[defect.status as DefectStatus])}
@@ -474,15 +507,15 @@ export default function DefectsPage() {
                       </span>
                     )}
                   </td>
-                  <td>
+                  <td className="text-left">
                     <span className={cn('badge text-[10px] px-2 py-0.5 border', SEVERITY_COLORS[defect.severity])}>
                       {defect.severity}
                     </span>
                   </td>
                   <td>
-                    {jiraIntegration || defect.isJiraSynced ? (
+                    {isIntegrationActive || defect.isJiraSynced ? (
                       <span className="text-xs text-muted-foreground font-medium">
-                        {defect.jiraAssigneeName || 'Unassigned'} (Jira)
+                        {defect.jiraAssigneeName || 'Unassigned'} ({activeIntegration?.provider || 'Synced'})
                       </span>
                     ) : canAssign ? (
                       <select
@@ -502,16 +535,18 @@ export default function DefectsPage() {
                       </span>
                     )}
                   </td>
-                  {!jiraIntegration && (
+                  {!isIntegrationActive && (
                     <td>
                       <div className="text-sm max-w-[150px] truncate" title={defect.testCaseTitle}>{defect.testCaseTitle}</div>
                     </td>
                   )}
+                  <td>
+                    <div className="text-xs font-medium text-foreground">{defect.reporterName}</div>
+                  </td>
                   <td className="text-xs text-muted-foreground">
-                    {jiraIntegration && defect.reporterName && <div className="font-medium text-foreground mb-0.5">{defect.reporterName}</div>}
                     {formatDate(defect.created_at)}
                   </td>
-                  <td>
+                  <td className="text-left">
                     {defect.jira_url ? (
                       <a 
                         href={defect.jira_url} 
@@ -519,7 +554,7 @@ export default function DefectsPage() {
                         rel="noopener noreferrer"
                         className="btn-secondary btn-sm h-8 px-2 flex items-center gap-1.5"
                       >
-                        <ExternalLink className="w-3.5 h-3.5" /> Jira
+                        <ExternalLink className="w-3.5 h-3.5" /> {activeIntegration?.provider || 'Jira'}
                       </a>
                     ) : (
                       <span className="text-xs text-muted-foreground italic">None</span>
@@ -533,7 +568,7 @@ export default function DefectsPage() {
       </div>
 
       {/* Floating Bulk Action Bar */}
-      {!jiraIntegration && selectedDefects.length > 0 && canEdit && (
+      {!isIntegrationActive && selectedDefects.length > 0 && canEdit && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in flex items-center gap-4 bg-card border border-border shadow-2xl rounded-full px-6 py-3">
           <span className="text-sm font-medium">{selectedDefects.length} selected</span>
           <div className="h-4 w-px bg-border"></div>

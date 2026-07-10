@@ -194,14 +194,15 @@ function ProjectCard({ project }: { project: Project }) {
           <Link href={`/projects/${project.id}/hierarchy`} className="btn-secondary text-center text-xs py-2">Hierarchy</Link>
           <Link href={`/projects/${project.id}/test-cases`} className="btn-primary text-center text-xs py-2">Test Cases</Link>
         </div>
-        <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-          <Link href={`/projects/${project.id}/rtm`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">RTM</Link>
-          <Link href={`/projects/${project.id}/reviews`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Reviews</Link>
-          <Link href={`/projects/${project.id}/execution`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Execution</Link>
-          <Link href={`/projects/${project.id}/defects`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Defects</Link>
-          <Link href={`/projects/${project.id}/reports`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Reports</Link>
-          <Link href={`/projects/${project.id}/members`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Members</Link>
-          <Link href={`/projects/${project.id}/audit-logs`} className="btn-ghost w-[31%] text-center text-[11px] py-1.5 text-muted-foreground">Logs</Link>
+        <div className="grid grid-cols-4 gap-1.5 mt-3">
+          <Link href={`/projects/${project.id}/rtm`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">RTM</Link>
+          <Link href={`/projects/${project.id}/execution`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">Execution</Link>
+          <Link href={`/projects/${project.id}/defects`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">Defects</Link>
+          <Link href={`/projects/${project.id}/reviews`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">Reviews</Link>
+          <Link href={`/projects/${project.id}/reports`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">Reports</Link>
+          <Link href={`/projects/${project.id}/members`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">Members</Link>
+          <Link href={`/projects/${project.id}/integrations`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">Integrations</Link>
+          <Link href={`/projects/${project.id}/audit-logs`} className="bg-muted/30 hover:bg-muted/80 border border-border/50 hover:border-border rounded-md text-center text-[10px] font-medium py-1.5 text-muted-foreground hover:text-foreground transition-all">Logs</Link>
         </div>
       </div>
 

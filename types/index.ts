@@ -49,9 +49,11 @@ export interface ProjectMember {
 export interface ProjectIntegration {
   id: string
   project_id: string
-  provider: 'JIRA'
+  name: string
+  is_active: boolean
+  provider: 'JIRA' | 'GITLAB' | 'GITHUB'
   base_url: string
-  email: string
+  email?: string
   api_token: string
   target_project_key: string
   created_at: string
