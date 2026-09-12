@@ -27,6 +27,27 @@ export default function LoginPage() {
     }
   }
 
+  async function handleGuestLogin(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    setErrorMsg('')
+    setLoading(true)
+    
+    const formData = new FormData()
+    formData.append('email', 'guestuser@gmail.com')
+    formData.append('password', '0987654321')
+    
+    try {
+      const result = await login(formData)
+      if (result?.error) {
+        setErrorMsg(result.error)
+        setLoading(false)
+      }
+    } catch (err) {
+      setErrorMsg('An unexpected error occurred')
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="w-full max-w-md bg-card rounded-2xl shadow-xl border p-8">
       <div className="flex flex-col items-center mb-8">
@@ -74,6 +95,21 @@ export default function LoginPage() {
           className="btn-primary w-full justify-center h-11 mt-2 text-base"
         >
           {loading ? 'Signing in...' : 'Sign In'}
+        </button>
+
+        <div className="relative flex py-2 items-center">
+          <div className="flex-grow border-t border-muted"></div>
+          <span className="flex-shrink-0 mx-4 text-muted-foreground text-sm">or</span>
+          <div className="flex-grow border-t border-muted"></div>
+        </div>
+
+        <button 
+          type="button" 
+          onClick={handleGuestLogin}
+          disabled={loading}
+          className="btn-secondary w-full justify-center h-11 text-base bg-secondary text-secondary-foreground hover:bg-secondary/80 border"
+        >
+          {loading ? 'Entering Cave...' : 'Login as Guest (Recruiter)'}
         </button>
       </form>
     </div>

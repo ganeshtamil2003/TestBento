@@ -123,6 +123,7 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error('GitHub Integration Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch from GitHub' }, { status: 500 });
+    const status = error.message?.includes('Credentials') ? 401 : 500;
+    return NextResponse.json({ error: error.message || 'Failed to fetch from GitHub' }, { status });
   }
 }
